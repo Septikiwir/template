@@ -1,0 +1,310 @@
+/* ─── Header ─── */
+.header {
+  text-align: center;
+  margin-bottom: 2rem;
+  animation: fadeUp 0.5s ease both;
+  position: relative;
+  z-index: 1;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 100px;
+  margin-bottom: 1.25rem;
+  letter-spacing: 0.01em;
+}
+
+.badgeDot {
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: pulse-dot 2s ease infinite;
+}
+
+.title {
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.titleAccent {
+  color: var(--accent-dark);
+}
+
+.subtitle {
+  font-size: 15px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  max-width: 360px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ─── Card ─── */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  padding: 2.25rem 2rem;
+  width: 100%;
+  max-width: 500px;
+  animation: fadeUp 0.5s 0.1s ease both;
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Fields ─── */
+.field {
+  margin-bottom: 1.25rem;
+  position: relative;
+}
+
+.field:last-of-type {
+  margin-bottom: 0;
+}
+
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  letter-spacing: 0.01em;
+  font-family: var(--font-display), sans-serif;
+}
+
+.req {
+  color: var(--accent-dark);
+}
+
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 14px;
+  color: var(--text-hint);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.inputIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.inputIconTextarea {
+  top: 13px;
+  align-self: flex-start;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  font-family: var(--font-body), sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text-primary);
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px 11px 42px;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  -webkit-appearance: none;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 120px;
+  line-height: 1.6;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-hint);
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.12);
+}
+
+.inputWrap:has(.input:focus) .inputIcon,
+.inputWrap:has(.textarea:focus) .inputIcon {
+  color: var(--accent-dark);
+}
+
+/* ─── Error state ─── */
+.fieldError .input,
+.fieldError .textarea {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(226, 75, 74, 0.1);
+}
+
+/* ─── Hints ─── */
+.hint {
+  font-size: 12px;
+  color: var(--text-hint);
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hintError {
+  font-size: 12px;
+  color: var(--danger);
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: fadeUp 0.2s ease;
+}
+
+/* ─── Divider ─── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+/* ─── Preview ─── */
+.previewSection {
+  margin-bottom: 1.5rem;
+  animation: fadeUp 0.3s ease;
+}
+
+.previewLabel {
+  font-family: var(--font-display), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+  opacity: 0.7;
+}
+
+.previewBox {
+  background: var(--accent-light);
+  border: 1px dashed rgba(37, 211, 102, 0.4);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--accent-dark);
+  line-height: 1.65;
+  min-height: 48px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* ─── Button ─── */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 20px;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-display), sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s, box-shadow 0.2s, opacity 0.2s;
+  letter-spacing: 0.01em;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--accent-dark);
+  box-shadow: 0 6px 20px rgba(37, 211, 102, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--accent);
+  box-shadow: none;
+  transform: none;
+}
+
+.btn svg {
+  flex-shrink: 0;
+}
+
+.btnIcon {
+  display: flex;
+  align-items: center;
+}
+
+.btnSpinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.btnLoading {
+  pointer-events: none;
+}
+
+.btnSent {
+  background: var(--accent-dark);
+}
+
+/* ─── Footer ─── */
+.footerNote {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-hint);
+  margin-top: 1.25rem;
+  position: relative;
+  z-index: 1;
+  animation: fadeUp 0.5s 0.2s ease both;
+}
+
+.footerNote strong {
+  color: var(--text-secondary);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 540px) {
+  .card {
+    padding: 1.75rem 1.25rem;
+    border-radius: var(--radius-lg);
+  }
+}
