@@ -18,6 +18,15 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## Supabase Setup
+
+1. Copy `.env.example` to `.env.local`.
+2. Fill `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from your Supabase project.
+3. Run SQL in `supabase/schema.sql` in Supabase SQL Editor.
+4. Start app with `npm run dev`.
+
+App will save and load contacts through `app/api/contacts/route.ts`.
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

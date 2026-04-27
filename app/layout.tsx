@@ -17,7 +17,7 @@ const syne = Syne({
 export const metadata: Metadata = {
   title: "WA Sender — Kirim Pesan WhatsApp",
   description:
-    "Tulis template sekali, kirim ke siapa saja — tanpa ribet. Tidak ada data yang disimpan.",
+    "Simpan kontak WhatsApp ke Supabase untuk dipakai pada pengembangan fitur berikutnya.",
 };
 
 export default function RootLayout({
