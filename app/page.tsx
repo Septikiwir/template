@@ -6,8 +6,9 @@ import styles from "./page.module.css";
 export default function Home() {
   const [nama, setNama] = useState("");
   const [nomor, setNomor] = useState("");
+  const [link, setLink] = useState("");
   const [pesan, setPesan] = useState("");
-  const [touched, setTouched] = useState({ nama: false, nomor: false, pesan: false });
+  const [touched, setTouched] = useState({ nama: false, nomor: false, link: false, pesan: false });
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -15,24 +16,46 @@ export default function Home() {
   const namaErr = touched.nama && !nama.trim();
   const nomorEmpty = touched.nomor && !nomor.trim();
   const nomorInvalid = touched.nomor && nomor.trim() !== "" && !/^\d+$/.test(nomor);
-  const pesanErr = touched.pesan && !pesan.trim();
+  const linkErr = touched.link && !link.trim();
+  const pesanEmpty = touched.pesan && !pesan.trim();
+  const pesanMissingNama = touched.pesan && pesan.trim() !== "" && !pesan.includes("{nama}");
+  const pesanMissingLink = touched.pesan && pesan.trim() !== "" && !pesan.includes("{link}");
+  const pesanErr = pesanEmpty || pesanMissingNama || pesanMissingLink;
 
-  const isValid = nama.trim() && nomor.trim() && /^\d+$/.test(nomor) && pesan.trim();
+  const isValid = 
+    nama.trim() && 
+    nomor.trim() && 
+    /^\d+$/.test(nomor) && 
+    link.trim() &&
+    pesan.trim() &&
+    pesan.includes("{nama}") &&
+    pesan.includes("{link}");
 
   const buildMessage = useCallback(() => {
     if (!pesan.trim()) return "";
     const n = nama.trim() || "{nama}";
-    return pesan.replace(/\{nama\}/g, n);
-  }, [nama, pesan]);
+    let l = link.trim() || "{link}";
+
+    // Append name to link if link contains "to="
+    if (nama.trim() && link.trim() && l.includes("to=")) {
+      l = l + encodeURIComponent(nama.trim());
+    }
+
+    return pesan.replace(/\{nama\}/g, n).replace(/\{link\}/g, l);
+  }, [nama, pesan, link]);
 
   const previewMessage = buildMessage();
 
   const handleNomorChange = (value: string) => {
-    setNomor(value.replace(/[^\d]/g, ""));
+    let cleaned = value.replace(/[^\d]/g, "");
+    if (cleaned.startsWith("0")) {
+      cleaned = "62" + cleaned.slice(1);
+    }
+    setNomor(cleaned);
   };
 
   const handleSubmit = () => {
-    setTouched({ nama: true, nomor: true, pesan: true });
+    setTouched({ nama: true, nomor: true, link: true, pesan: true });
     if (!isValid) return;
 
     setLoading(true);
@@ -136,7 +159,35 @@ export default function Home() {
             <div className={styles.hintError}>Nomor WhatsApp tidak boleh kosong.</div>
           )}
           {nomorInvalid && (
-            <div className={styles.hintError}>Nomor hanya boleh berisi angka, tanpa tanda + atau spasi.</div>
+            <div className={styles.hintError}>Nomor hanya boleh berisi angka.</div>
+          )}
+        </div>
+
+        {/* Link */}
+        <div className={`${styles.field} ${linkErr ? styles.fieldError : ""}`}>
+          <label htmlFor="link" className={styles.label}>
+            Link / URL <span className={styles.req}>*</span>
+          </label>
+          <div className={styles.inputWrap}>
+            <input
+              id="link"
+              type="text"
+              className={styles.input}
+              placeholder="Contoh: https://link.com/?to="
+              autoComplete="off"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              onBlur={() => setTouched((t) => ({ ...t, link: true }))}
+            />
+            <span className={styles.inputIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+              </svg>
+            </span>
+          </div>
+          {linkErr && (
+            <div className={styles.hintError}>Link tidak boleh kosong.</div>
           )}
         </div>
 
@@ -162,10 +213,16 @@ export default function Home() {
             </span>
           </div>
           <div className={styles.hint}>
-            Gunakan <strong>{"{nama}"}</strong> sebagai placeholder nama penerima.
+            Wajib gunakan <strong>{"{nama}"}</strong> dan <strong>{"{link}"}</strong> dalam template.
           </div>
-          {pesanErr && (
+          {pesanEmpty && (
             <div className={styles.hintError}>Template pesan tidak boleh kosong.</div>
+          )}
+          {pesanMissingNama && (
+            <div className={styles.hintError}>Template harus mengandung <strong>{"{nama}"}</strong></div>
+          )}
+          {pesanMissingLink && (
+            <div className={styles.hintError}>Template harus mengandung <strong>{"{link}"}</strong></div>
           )}
         </div>
 
