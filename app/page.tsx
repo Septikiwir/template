@@ -54,9 +54,23 @@ export default function Home() {
     const n = nama.trim() || "{nama}";
     let l = link.trim() || "{link}";
 
-    // Append name to link if link contains "to="
-    if (nama.trim() && link.trim() && l.includes("to=")) {
-      l = l + encodeURIComponent(nama.trim());
+    // Handle link and "to=" parameter automatically
+    if (nama.trim() && link.trim()) {
+      const nEncoded = encodeURIComponent(nama.trim());
+      // Clean up link if it already ends with "to=" or "to=" exists
+      if (l.includes("to=")) {
+        // If it already ends with "to=", just append the name
+        if (l.endsWith("to=")) {
+          l = l + nEncoded;
+        } 
+        // If it contains "to=" but has something else after, we leave it as is 
+        // (assuming the user knows what they are doing)
+      } else {
+        // Append /?to= or &to= based on whether query params exist
+        const separator = l.includes("?") ? "&" : "/?to=";
+        const param = separator.includes("to=") ? "" : "to=";
+        l = l + separator + param + nEncoded;
+      }
     }
 
     return pesan.replace(/\{nama\}/g, n).replace(/\{link\}/g, l);
@@ -191,7 +205,7 @@ export default function Home() {
               id="link"
               type="text"
               className={styles.input}
-              placeholder="Contoh: https://link.com/?to="
+              placeholder="Contoh: https://link.com"
               autoComplete="off"
               value={link}
               onChange={(e) => setLink(e.target.value)}
