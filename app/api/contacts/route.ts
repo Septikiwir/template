@@ -10,6 +10,7 @@ type IncomingContact = {
   is_vip?: unknown;
   is_sent?: unknown;
   is_present?: unknown;
+  present_at?: unknown;
   token?: unknown;
 };
 
@@ -38,14 +39,14 @@ function normalizeContact(contact: IncomingContact) {
   const is_vip = typeof contact.is_vip === "boolean" ? contact.is_vip : false;
   const is_sent = typeof contact.is_sent === "boolean" ? contact.is_sent : false;
   const is_present = typeof contact.is_present === "boolean" ? contact.is_present : false;
+  const present_at = typeof contact.present_at === "string" ? contact.present_at : null;
   const token = typeof contact.token === "string" ? contact.token : generateToken();
 
   if (!nama || !nomor) {
     return null;
   }
 
-  // PENTING: Jangan kirim ID jika undefined agar database bisa auto-generate
-  const result: any = { nama, nomor, is_vip, is_sent, is_present, token };
+  const result: any = { nama, nomor, is_vip, is_sent, is_present, present_at, token };
   if (id !== undefined) {
     result.id = id;
   }
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from("contacts")
-      .select("id, nama, nomor, created_at, is_vip, is_sent, is_present, token")
+      .select("id, nama, nomor, created_at, is_vip, is_sent, is_present, present_at, token")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -142,7 +143,7 @@ export async function POST(request: Request) {
 
     const { data, error: selectError } = await supabase
       .from("contacts")
-      .select("id, nama, nomor, created_at, is_vip, is_sent, is_present, token")
+      .select("id, nama, nomor, created_at, is_vip, is_sent, is_present, present_at, token")
       .order("created_at", { ascending: false });
 
     if (selectError) {

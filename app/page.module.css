@@ -1056,3 +1056,78 @@
   from { opacity: 0; transform: translate(-50%, -20px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
+
+.statusHadir {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #e0e7ff;
+  color: #4338ca;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scanResultCard {
+  padding: 32px 24px;
+  text-align: center;
+  animation: slideUp 0.3s ease-out;
+}
+
+.resultCheck {
+  width: 60px;
+  height: 60px;
+  background: #10b981;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin: 0 auto 20px;
+  box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2);
+}
+
+.resultName {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.resultVip {
+  display: inline-block;
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 24px;
+}
+
+.resultInfo {
+  background: var(--surface2);
+  padding: 16px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.resultLabel {
+  font-size: 14px;
+  color: var(--text-hint);
+}
+
+.resultValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

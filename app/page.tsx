@@ -15,6 +15,7 @@ type Contact = {
   is_vip: boolean;
   is_sent: boolean;
   is_present: boolean;
+  present_at: string | null;
   token: string;
 };
 
@@ -95,6 +96,7 @@ export default function Home() {
   const [isFetching, setIsFetching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [scannedContact, setScannedContact] = useState<Contact | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [link, setLink] = useState(() => initialLocal("wa_sender_link"));
   const [pesan, setPesan] = useState(() => initialLocal("wa_sender_pesan"));
@@ -160,12 +162,14 @@ export default function Home() {
     if (contact) {
       if (contact.is_present) {
         setFeedback(`${contact.nama} sudah hadir sebelumnya.`);
+        setScannedContact(contact);
         setTimeout(() => setFeedback(""), 3000);
       } else {
-        const updated = { ...contact, is_present: true };
+        const now = new Date().toISOString();
+        const updated = { ...contact, is_present: true, present_at: now };
         
-        // Visual feedback
         setFeedback(`BERHASIL: ${contact.nama} hadir!`);
+        setScannedContact(updated);
         
         try {
           await handleUpdateContact(updated);
@@ -175,11 +179,9 @@ export default function Home() {
         
         setTimeout(() => setFeedback(""), 4000);
       }
-      setIsScanning(false);
     } else {
       setErrorMessage("ID Tamu Tidak Valid: " + decodedText);
       setTimeout(() => setErrorMessage(""), 3000);
-      setIsScanning(false);
     }
   };
 
@@ -427,9 +429,14 @@ export default function Home() {
 
   const filteredGuestbook = useMemo(() => {
     const keyword = guestbookQuery.trim().toLowerCase();
-    if (!keyword) return contacts;
+    
+    // Tahap 1: Saring tamu yang sudah dikirim atau sudah hadir
+    const processed = contacts.filter(c => c.is_sent || c.is_present);
 
-    return contacts.filter((contact) => {
+    if (!keyword) return processed;
+
+    // Tahap 2: Saring berdasarkan pencarian jika ada kata kunci
+    return processed.filter((contact) => {
       const byName = contact.nama.toLowerCase().includes(keyword);
       const byNumber = contact.nomor.toLowerCase().includes(keyword);
       return byName || byNumber;
@@ -734,16 +741,16 @@ export default function Home() {
 
           <div className={styles.egmsStatsGrid}>
             <div className={styles.statCard}>
-              <span className={styles.statLabel}>Total Tamu</span>
-              <span className={styles.statValue}>{contacts.length}</span>
+              <span className={styles.statLabel}>Tamu Terdata</span>
+              <span className={styles.statValue}>{filteredGuestbook.length}</span>
             </div>
             <div className={styles.statCard}>
               <span className={styles.statLabel}>Terkirim</span>
-              <span className={styles.statValue}>{sentNomors.length}</span>
+              <span className={styles.statValue}>{filteredGuestbook.filter(c => c.is_sent && !c.is_present).length}</span>
             </div>
             <div className={styles.statCard}>
               <span className={styles.statLabel}>Hadir</span>
-              <span className={styles.statValue}>{contacts.filter(c => c.is_present).length}</span>
+              <span className={styles.statValue}>{filteredGuestbook.filter(c => c.is_present).length}</span>
             </div>
           </div>
 
@@ -798,9 +805,13 @@ export default function Home() {
                     )}
                   </div>
                   <div className={styles.egmsCell}>
-                    <span className={isSent ? styles.statusSent : styles.statusPending}>
-                      {isSent ? "Terkirim" : "Belum"}
-                    </span>
+                    {contact.is_present ? (
+                      <span className={styles.statusHadir}>Hadir</span>
+                    ) : isSent ? (
+                      <span className={styles.statusSent}>Terkirim</span>
+                    ) : (
+                      <span className={styles.statusPending}>Belum</span>
+                    )}
                   </div>
                   <div className={styles.egmsCell}>
                     <button 
@@ -907,7 +918,12 @@ export default function Home() {
       {isScanning && (
         <ScannerOverlay 
           onScanSuccess={handleScanSuccess} 
-          onClose={() => setIsScanning(false)} 
+          onClose={() => {
+            setIsScanning(false);
+            setScannedContact(null);
+          }} 
+          scannedContact={scannedContact}
+          onReset={() => setScannedContact(null)}
         />
       )}
       {/* Notification Toast */}
@@ -930,14 +946,20 @@ export default function Home() {
 // Komponen Scanner Internal
 function ScannerOverlay({ 
   onScanSuccess, 
-  onClose 
+  onClose,
+  scannedContact,
+  onReset
 }: { 
   onScanSuccess: (text: string) => void; 
   onClose: () => void;
+  scannedContact: Contact | null;
+  onReset: () => void;
 }) {
   useEffect(() => {
+    if (scannedContact) return; // Stop scanner if showing result
+
     const html5QrCode = new Html5Qrcode("reader");
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const config = { fps: 15, qrbox: { width: 250, height: 250 } };
 
     html5QrCode.start(
       { facingMode: "environment" }, 
@@ -955,13 +977,15 @@ function ScannerOverlay({
         html5QrCode.stop().catch(err => console.error(err));
       }
     };
-  }, [onScanSuccess]);
+  }, [onScanSuccess, scannedContact]);
 
   return (
     <div className={styles.modalOverlay}>
       <div className={styles.scannerCard}>
         <div className={styles.modalHeader}>
-          <h3 className={styles.modalTitle}>Scan QR Code Tamu</h3>
+          <h3 className={styles.modalTitle}>
+            {scannedContact ? "Konfirmasi Kehadiran" : "Scan QR Code Tamu"}
+          </h3>
           <button className={styles.actionBtn} onClick={onClose}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -969,10 +993,34 @@ function ScannerOverlay({
             </svg>
           </button>
         </div>
-        <div id="reader" className={styles.reader}></div>
-        <div className={styles.modalFooter}>
-          <p className={styles.qrHint}>Arahkan kamera ke QR Code tamu</p>
-        </div>
+
+        {scannedContact ? (
+          <div className={styles.scanResultCard}>
+            <div className={styles.resultCheck}>✓</div>
+            <h2 className={styles.resultName}>{scannedContact.nama}</h2>
+            {scannedContact.is_vip && (
+              <div className={styles.resultVip}>TAMU VIP</div>
+            )}
+            <div className={styles.resultInfo}>
+              <span className={styles.resultLabel}>Waktu Hadir</span>
+              <span className={styles.resultValue}>
+                {scannedContact.present_at 
+                  ? new Date(scannedContact.present_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) 
+                  : "-"}
+              </span>
+            </div>
+            <button className={styles.btn} onClick={onReset} style={{ width: "100%", marginTop: 24 }}>
+              Terima Tamu Berikutnya
+            </button>
+          </div>
+        ) : (
+          <>
+            <div id="reader" className={styles.reader}></div>
+            <div className={styles.modalFooter}>
+              <p className={styles.qrHint}>Arahkan kamera ke QR Code tamu</p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
