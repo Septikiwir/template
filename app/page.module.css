@@ -309,3 +309,166 @@
     border-radius: var(--radius-lg);
   }
 }
+/* ─── Mode Toggle ─── */
+.modeToggle {
+  display: flex;
+  background: var(--surface2);
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 0;
+  border: 1px solid var(--border);
+  gap: 4px;
+}
+
+.modeBtn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-display), sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.modeBtnActive {
+  background: var(--surface);
+  color: var(--accent-dark);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* ─── Bulk List ─── */
+.bulkHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.bulkTitle {
+  font-family: var(--font-display), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.bulkStats {
+  font-size: 13px;
+  color: var(--accent-dark);
+  font-weight: 600;
+  background: var(--accent-light);
+  padding: 4px 10px;
+  border-radius: 100px;
+}
+
+.bulkList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 1.5rem;
+}
+
+/* Scrollbar */
+.bulkList::-webkit-scrollbar {
+  width: 5px;
+}
+.bulkList::-webkit-scrollbar-track {
+  background: transparent;
+}
+.bulkList::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+
+.contactRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 0.2s;
+}
+
+.contactRowSent {
+  opacity: 0.7;
+  background: var(--surface);
+  border-color: var(--accent-light);
+}
+
+.contactInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contactName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.contactNumber {
+  font-size: 12px;
+  color: var(--text-hint);
+  font-family: var(--font-body), sans-serif;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sentBadge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.miniBtn {
+  padding: 6px 12px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.miniBtn:hover {
+  background: var(--accent-dark);
+}
+
+.bulkActionArea {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 1rem;
+}
+
+.secondaryBtn {
+  background: var(--surface2);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.secondaryBtn:hover {
+  background: var(--border);
+}
