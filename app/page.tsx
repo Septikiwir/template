@@ -8,6 +8,24 @@ export default function Home() {
   const [nomor, setNomor] = useState("");
   const [link, setLink] = useState("");
   const [pesan, setPesan] = useState("");
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const savedLink = localStorage.getItem("wa_sender_link");
+    const savedPesan = localStorage.getItem("wa_sender_pesan");
+    if (savedLink) setLink(savedLink);
+    if (savedPesan) setPesan(savedPesan);
+  }, []);
+
+  // Save to localStorage when changed
+  useEffect(() => {
+    if (link) localStorage.setItem("wa_sender_link", link);
+  }, [link]);
+
+  useEffect(() => {
+    if (pesan) localStorage.setItem("wa_sender_pesan", pesan);
+  }, [pesan]);
+
   const [touched, setTouched] = useState({ nama: false, nomor: false, link: false, pesan: false });
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
