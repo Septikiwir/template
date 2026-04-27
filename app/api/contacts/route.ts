@@ -44,7 +44,13 @@ function normalizeContact(contact: IncomingContact) {
     return null;
   }
 
-  return { id, nama, nomor, is_vip, is_sent, is_present, token };
+  // PENTING: Jangan kirim ID jika undefined agar database bisa auto-generate
+  const result: any = { nama, nomor, is_vip, is_sent, is_present, token };
+  if (id !== undefined) {
+    result.id = id;
+  }
+  
+  return result;
 }
 
 function getSupabaseUserClient(request: Request) {
@@ -88,9 +94,9 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ contacts: data ?? [] });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Gagal mengambil kontak.";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error: any) {
+    console.error("DEBUG API ERROR GET:", error);
+    return NextResponse.json({ error: error.message || "Gagal mengambil kontak." }, { status: 500 });
   }
 }
 
@@ -126,7 +132,6 @@ export async function POST(request: Request) {
       new Map(normalizedContacts.map((contact) => [contact.nomor, contact])).values()
     );
 
-    // Upsert will respect RLS policies
     const { error: upsertError } = await supabase
       .from("contacts")
       .upsert(dedupedByNomor, { onConflict: "user_id,nomor" });
@@ -144,12 +149,13 @@ export async function POST(request: Request) {
       throw selectError;
     }
 
-    return NextResponse.json({
-      savedCount: dedupedByNomor.length,
+    return NextResponse.json({ 
       contacts: data ?? [],
+      savedCount: dedupedByNomor.length 
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Gagal menyimpan kontak.";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error: any) {
+    console.error("DEBUG API ERROR POST:", error);
+    const errorMessage = error.message || error.details || "Terjadi kesalahan pada server.";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

@@ -122,7 +122,7 @@ export default function Home() {
         c.id === updated.id ? updated : c
       ));
 
-      await fetch("/api/contacts", {
+      const response = await fetch("/api/contacts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -139,9 +139,16 @@ export default function Home() {
           }] 
         }),
       });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Gagal memperbarui database.");
+      }
       
       setEditingContact(null);
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Gagal menyimpan.";
+      setErrorMessage(message);
       handleLoadContacts();
     }
   };
@@ -296,7 +303,7 @@ export default function Home() {
         body: JSON.stringify({ contacts: validContacts }),
       });
 
-      const data = (await response.json()) as Partial<SaveResponse> & { error?: string };
+      const data = (await response.json()) as { contacts?: Contact[], error?: string };
 
       if (!response.ok) {
         throw new Error(data.error || "Gagal menyimpan kontak.");
