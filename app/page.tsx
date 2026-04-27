@@ -303,7 +303,7 @@ export default function Home() {
         body: JSON.stringify({ contacts: validContacts }),
       });
 
-      const data = (await response.json()) as { contacts?: Contact[], error?: string };
+      const data = (await response.json()) as { contacts?: Contact[], savedCount?: number, error?: string };
 
       if (!response.ok) {
         throw new Error(data.error || "Gagal menyimpan kontak.");
