@@ -149,17 +149,30 @@ export default function Home() {
   const handleScanSuccess = async (decodedText: string) => {
     // Find contact with this token
     const contact = contacts.find(c => c.token === decodedText);
+    
     if (contact) {
       if (contact.is_present) {
-        setFeedback(`${contact.nama} sudah check-in sebelumnya.`);
+        setFeedback(`${contact.nama} sudah hadir sebelumnya.`);
+        setTimeout(() => setFeedback(""), 3000);
       } else {
         const updated = { ...contact, is_present: true };
-        await handleUpdateContact(updated);
-        setFeedback(`Check-in Berhasil: ${contact.nama}`);
+        
+        // Visual feedback
+        setFeedback(`BERHASIL: ${contact.nama} hadir!`);
+        
+        try {
+          await handleUpdateContact(updated);
+        } catch (err) {
+          setErrorMessage("Gagal menyimpan kehadiran.");
+        }
+        
+        setTimeout(() => setFeedback(""), 4000);
       }
       setIsScanning(false);
     } else {
-      setErrorMessage("ID Tamu tidak dikenali.");
+      setErrorMessage("ID Tamu Tidak Valid: " + decodedText);
+      setTimeout(() => setErrorMessage(""), 3000);
+      setIsScanning(false);
     }
   };
 
@@ -889,6 +902,19 @@ export default function Home() {
           onScanSuccess={handleScanSuccess} 
           onClose={() => setIsScanning(false)} 
         />
+      )}
+      {/* Notification Toast */}
+      {feedback && (
+        <div className={styles.toastSuccess}>
+          <div className={styles.toastIcon}>✓</div>
+          <div>{feedback}</div>
+        </div>
+      )}
+      {errorMessage && (
+        <div className={styles.toastError}>
+          <div className={styles.toastIcon}>!</div>
+          <div>{errorMessage}</div>
+        </div>
       )}
     </>
   );
