@@ -109,6 +109,7 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Contact | 'no'; direction: 'asc' | 'desc' }>({ key: 'is_present', direction: 'desc' });
 
   // Helper to map username to internal email for Supabase Auth
   const getInternalEmail = (user: string) => `${user.trim().toLowerCase()}@wedding.com`;
@@ -116,6 +117,17 @@ export default function Home() {
   const pesanMissingNama = pesan.trim() !== "" && !pesan.includes("{nama}");
   const pesanMissingLink = pesan.trim() !== "" && !pesan.includes("{link}");
   const templateInvalid = !pesan.trim() || !link.trim() || pesanMissingNama || pesanMissingLink;
+
+  // Efek untuk membersihkan notifikasi otomatis setelah 3 detik
+  useEffect(() => {
+    if (feedback || errorMessage) {
+      const timer = setTimeout(() => {
+        setFeedback("");
+        setErrorMessage("");
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [feedback, errorMessage]);
 
   const handleUpdateContact = async (updated: Contact) => {
     if (!session) return;
@@ -156,14 +168,16 @@ export default function Home() {
   };
 
   const handleScanSuccess = async (decodedText: string) => {
-    // Find contact with this token
-    const contact = contacts.find(c => c.token === decodedText);
+    // Bersihkan hasil scan dari spasi atau karakter aneh
+    const cleanToken = decodedText.trim();
+    
+    // Cari tamu berdasarkan token
+    const contact = contacts.find(c => c.token === cleanToken);
     
     if (contact) {
       if (contact.is_present) {
         setFeedback(`${contact.nama} sudah hadir sebelumnya.`);
         setScannedContact(contact);
-        setTimeout(() => setFeedback(""), 3000);
       } else {
         const now = new Date().toISOString();
         const updated = { ...contact, is_present: true, present_at: now };
@@ -176,30 +190,81 @@ export default function Home() {
         } catch (err) {
           setErrorMessage("Gagal menyimpan kehadiran.");
         }
-        
-        setTimeout(() => setFeedback(""), 4000);
       }
     } else {
       setErrorMessage("ID Tamu Tidak Valid: " + decodedText);
-      setTimeout(() => setErrorMessage(""), 3000);
     }
   };
 
+  // 1. Handle Ambil Data
+  const handleLoadContacts = async () => {
+    if (!session) return;
+    try {
+      setIsFetching(true);
+      const response = await fetch("/api/contacts", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store"
+      });
+      const data = await response.json();
+      if (response.ok) {
+        const freshContacts = Array.isArray(data.contacts) ? data.contacts : [];
+        setContacts(freshContacts);
+        setSentNomors(freshContacts.filter((c: Contact) => c.is_sent).map((c: Contact) => c.nomor));
+      }
+    } catch (err) {
+      console.error("Load Error:", err);
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
+  // 2. Auth & Realtime Subscription
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setIsInitializing(false);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!session) {
+      setContacts([]);
+      return;
+    }
+
+    // Ambil data awal
+    handleLoadContacts();
+
+    // Pasang pendengar Realtime khusus untuk user ini
+    const channel = supabase
+      .channel(`realtime_contacts_${session.user.id}`)
+      .on(
+        "postgres_changes",
+        { 
+          event: "*", 
+          schema: "public", 
+          table: "contacts",
+          filter: `user_id=eq.${session.user.id}` 
+        },
+        () => {
+          // Setiap ada perubahan (INSERT/UPDATE/DELETE), ambil data terbaru
+          handleLoadContacts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
+  // 3. Local Storage Sync
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("wa_sender_link", link);
@@ -211,14 +276,6 @@ export default function Home() {
       localStorage.setItem("wa_sender_pesan", pesan);
     }
   }, [pesan]);
-
-  useEffect(() => {
-    if (session && contacts.length === 0) {
-      handleLoadContacts();
-    } else if (!session) {
-      setContacts([]);
-    }
-  }, [session, contacts.length]);
 
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -248,38 +305,6 @@ export default function Home() {
     setGuestbookQuery("");
   };
 
-  const handleLoadContacts = async () => {
-    if (!session) return;
-    try {
-      setIsFetching(true);
-      setErrorMessage("");
-
-      const response = await fetch("/api/contacts", {
-        cache: "no-store",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Gagal mengambil data kontak.");
-      }
-
-      setContacts(Array.isArray(data.contacts) ? data.contacts : []);
-      
-      // Restore sent status from database
-      const dbSentNomors = (Array.isArray(data.contacts) ? data.contacts : [])
-        .filter((c: Contact) => c.is_sent)
-        .map((c: Contact) => c.nomor);
-      setSentNomors(dbSentNomors);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Terjadi kesalahan.";
-      setErrorMessage(message);
-    } finally {
-      setIsFetching(false);
-    }
-  };
 
   const handleSaveContacts = async () => {
     if (!session) return;
@@ -431,17 +456,49 @@ export default function Home() {
     const keyword = guestbookQuery.trim().toLowerCase();
     
     // Tahap 1: Saring tamu yang sudah dikirim atau sudah hadir
-    const processed = contacts.filter(c => c.is_sent || c.is_present);
-
-    if (!keyword) return processed;
+    let processed = contacts.filter(c => c.is_sent || c.is_present);
 
     // Tahap 2: Saring berdasarkan pencarian jika ada kata kunci
-    return processed.filter((contact) => {
-      const byName = contact.nama.toLowerCase().includes(keyword);
-      const byNumber = contact.nomor.toLowerCase().includes(keyword);
-      return byName || byNumber;
+    if (keyword) {
+      processed = processed.filter((contact) => {
+        const byName = contact.nama.toLowerCase().includes(keyword);
+        const byNumber = contact.nomor.toLowerCase().includes(keyword);
+        return byName || byNumber;
+      });
+    }
+
+    // Tahap 3: Pengurutan (Sorting)
+    return [...processed].sort((a, b) => {
+      if (sortConfig.key === 'no') return 0; // Biarkan nomor urut tetap
+      
+      let valA = a[sortConfig.key as keyof Contact];
+      let valB = b[sortConfig.key as keyof Contact];
+
+      // Penanganan khusus untuk string
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortConfig.direction === 'asc' 
+          ? valA.localeCompare(valB) 
+          : valB.localeCompare(valA);
+      }
+
+      // Penanganan untuk boolean atau number
+      if (valA! < valB!) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (valA! > valB!) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
     });
-  }, [contacts, guestbookQuery]);
+  }, [contacts, guestbookQuery, sortConfig]);
+
+  const toggleSort = (key: keyof Contact | 'no') => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const getSortIcon = (key: keyof Contact | 'no') => {
+    if (sortConfig.key !== key) return "↕";
+    return sortConfig.direction === 'asc' ? "↑" : "↓";
+  };
 
   if (isInitializing) {
     return <div className={styles.loadingOverlay}>Memuat...</div>;
@@ -697,26 +754,32 @@ export default function Home() {
                 </div>
               )}
 
-              {contacts.map((contact) => {
-                const isSent = sentNomors.includes(contact.nomor);
-                return (
-                  <div key={contact.id} className={`${styles.contactRow} ${isSent ? styles.contactRowSent : ""}`}>
-                    <div className={styles.contactInfo}>
-                      <span className={styles.contactName}>{contact.nama}</span>
-                      <span className={styles.contactNumber}>{contact.nomor}</span>
+              {contacts
+                .sort((a, b) => {
+                  const aSent = sentNomors.includes(a.nomor);
+                  const bSent = sentNomors.includes(b.nomor);
+                  return aSent === bSent ? 0 : aSent ? 1 : -1;
+                })
+                .map((contact) => {
+                  const isSent = sentNomors.includes(contact.nomor);
+                  return (
+                    <div key={contact.id} className={`${styles.contactRow} ${isSent ? styles.contactRowSent : ""}`}>
+                      <div className={styles.contactInfo}>
+                        <span className={styles.contactName}>{contact.nama}</span>
+                        <span className={styles.contactNumber}>{contact.nomor}</span>
+                      </div>
+                      <div className={styles.rowActions}>
+                        <button
+                          className={isSent ? styles.sentBtn : styles.miniBtn}
+                          onClick={() => handleSendSingleContact(contact)}
+                          disabled={isSent}
+                        >
+                          {isSent ? "Terkirim" : "Kirim"}
+                        </button>
+                      </div>
                     </div>
-                    <div className={styles.rowActions}>
-                      <button
-                        className={isSent ? styles.sentBtn : styles.miniBtn}
-                        onClick={() => handleSendSingleContact(contact)}
-                        disabled={isSent}
-                      >
-                        {isSent ? "Terkirim" : "Kirim"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
 
               {isFetching && contacts.length === 0 && (
                 <div className={styles.contactRow}>
@@ -783,9 +846,18 @@ export default function Home() {
 
           <div className={styles.egmsTable}>
             <div className={styles.egmsTableHead}>
-              <span className={styles.egmsHeadCell}>No</span>
-              <span className={styles.egmsHeadCell}>Nama Tamu</span>
-              <span className={styles.egmsHeadCell}>Status</span>
+              <span className={styles.egmsHeadCell} onClick={() => toggleSort('no')} style={{ cursor: 'pointer' }}>
+                No {getSortIcon('no')}
+              </span>
+              <span className={styles.egmsHeadCell} onClick={() => toggleSort('nama')} style={{ cursor: 'pointer' }}>
+                Nama Tamu {getSortIcon('nama')}
+              </span>
+              <span className={styles.egmsHeadCell} onClick={() => toggleSort('is_vip')} style={{ cursor: 'pointer' }}>
+                Jenis {getSortIcon('is_vip')}
+              </span>
+              <span className={styles.egmsHeadCell} onClick={() => toggleSort('is_present')} style={{ cursor: 'pointer' }}>
+                Status {getSortIcon('is_present')}
+              </span>
               <span className={styles.egmsHeadCell}>Action</span>
             </div>
 
@@ -800,6 +872,8 @@ export default function Home() {
                   <span className={styles.egmsCell}>{index + 1}</span>
                   <div className={styles.egmsCellStrong}>
                     {contact.nama}
+                  </div>
+                  <div className={styles.egmsCell}>
                     {contact.is_vip && (
                       <span className={styles.vipBadge}>VIP</span>
                     )}
@@ -857,58 +931,70 @@ export default function Home() {
             <div className={styles.modalBody}>
               <div className={styles.field}>
                 <label className={styles.label}>Nama Tamu</label>
-                <div className={styles.inputWrap}>
+                <div className={styles.modalInputRow}>
                   <input 
                     type="text" 
                     className={styles.input} 
                     value={editingContact.nama}
                     onChange={(e) => setEditingContact({ ...editingContact, nama: e.target.value })}
+                    placeholder="Masukkan nama tamu"
                   />
-                  <span className={styles.inputIcon}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="8" r="4" />
-                      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-                    </svg>
-                  </span>
+                  <div className={styles.vipToggleMini}>
+                    <span className={styles.vipLabelSmall}>VIP</span>
+                    <label className={styles.switch}>
+                      <input 
+                        type="checkbox" 
+                        checked={editingContact.is_vip}
+                        onChange={(e) => setEditingContact({ ...editingContact, is_vip: e.target.checked })}
+                      />
+                      <span className={styles.slider}></span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <div className={styles.toggleField}>
-                <div className={styles.toggleLabel}>
-                  <span className={styles.toggleTitle}>Tamu VIP</span>
-                  <span className={styles.toggleDesc}>Tampilkan badge emas khusus</span>
+              <div className={styles.compactInfoCard}>
+                <div className={styles.infoCol}>
+                  <label className={styles.labelSmall}>Kehadiran</label>
+                  <div className={styles.presenceControl}>
+                    {editingContact.is_present ? (
+                      <div className={styles.presentStatusInfo}>
+                        <div className={styles.statusCheck}>✓</div>
+                        <div>
+                          <span className={styles.timeLabel}>HADIR</span>
+                          <span className={styles.timeValue}>
+                            {editingContact.present_at 
+                              ? new Date(editingContact.present_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) 
+                              : "-"}
+                          </span>
+                        </div>
+                        <button className={styles.cancelLink} onClick={() => setEditingContact({...editingContact, is_present: false, present_at: null})}>
+                          Batal
+                        </button>
+                      </div>
+                    ) : (
+                      <button className={styles.checkInBtn} onClick={() => setEditingContact({...editingContact, is_present: true, present_at: new Date().toISOString()})}>
+                        Check-in
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <label className={styles.switch}>
-                  <input 
-                    type="checkbox" 
-                    checked={editingContact.is_vip}
-                    onChange={(e) => setEditingContact({ ...editingContact, is_vip: e.target.checked })}
-                  />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
 
-              {/* QR Code Section */}
-              <div className={styles.qrSection}>
-                <label className={styles.label}>QR Code Check-in</label>
-                <div className={styles.qrBox}>
-                  <QRCodeSVG 
-                    value={editingContact.token || "PENDING"} 
-                    size={140}
-                    level="H"
-                    includeMargin={true}
-                  />
-                  <p className={styles.qrHint}>Gunakan kode ini untuk scan tamu di lokasi.</p>
+                <div className={styles.qrCol}>
+                  <label className={styles.labelSmall}>QR Code</label>
+                  <div className={styles.qrBoxCompact}>
+                    <QRCodeSVG value={editingContact.token || "PENDING"} size={70} />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className={styles.modalFooter}>
-              <button className={styles.ghostBtn} onClick={() => setEditingContact(null)}>
+            <div className={styles.modalFooterCompact}>
+              <button className={styles.cancelBtn} onClick={() => setEditingContact(null)}>
                 Batal
               </button>
-              <button className={styles.btn} onClick={() => handleUpdateContact(editingContact)}>
-                Simpan Perubahan
+              <button className={styles.saveBtn} onClick={() => handleUpdateContact(editingContact)}>
+                Simpan
               </button>
             </div>
           </div>
