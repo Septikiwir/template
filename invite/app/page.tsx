@@ -114,7 +114,7 @@ export default function Home() {
               id="nomor"
               type="text"
               className={styles.input}
-              placeholder="628123456789"
+              placeholder="628xxxxxxxxx"
               inputMode="numeric"
               autoComplete="off"
               value={nomor}
@@ -129,7 +129,7 @@ export default function Home() {
           </div>
           {!nomorEmpty && !nomorInvalid && (
             <div className={styles.hint}>
-              Format internasional tanpa +, contoh: <strong>628123456789</strong>
+              Format internasional tanpa +, contoh: <strong>628xxxxxxxxx</strong>
             </div>
           )}
           {nomorEmpty && (

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* stylelint-disable at-rule-no-unknown */
 @theme inline {
   --font-display: var(--font-syne);
   --font-body: var(--font-dm-sans);
