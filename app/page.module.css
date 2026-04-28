@@ -1614,7 +1614,7 @@
 /* Internal content wrapper to limit width */
 .scannerViewMaximized > * {
   width: 100%;
-  max-width: 1440px;
+  max-width: 1000px;
   height: 100%;
   position: relative;
 }
