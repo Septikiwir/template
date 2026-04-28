@@ -65,19 +65,19 @@ const parseBulkInput = (bulkInput: string) => {
 const getFinalLink = (rawLink: string, includeToken: boolean) => {
   let processed = rawLink.trim();
   if (!processed) return "";
-  
+
   // Pastikan to={nama} ada (kecuali sudah ada to= atau {nama})
   if (!processed.includes("{nama}") && !processed.includes("to=")) {
     const separator = processed.includes("?") ? "&" : "?";
     processed = `${processed}${separator}to={nama}`;
   }
-  
+
   // Pastikan token={id} ada jika diaktifkan (kecuali sudah ada token= atau {id})
   if (includeToken && !processed.includes("{id}") && !processed.includes("token=")) {
     const separator = processed.includes("?") ? "&" : "?";
     processed = `${processed}${separator}token={id}`;
   }
-  
+
   return processed;
 };
 
@@ -188,6 +188,7 @@ export default function Home() {
         throw new Error(errData.error || "Gagal memperbarui database.");
       }
 
+      setFeedback("Perubahan berhasil disimpan.");
       setEditingContact(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gagal menyimpan.";
@@ -324,9 +325,9 @@ export default function Home() {
   // 3. Local Storage Sync
   useEffect(() => {
     if (typeof window !== "undefined") {
-    localStorage.setItem("wa_sender_link", link);
-    localStorage.setItem("wa_sender_pesan", pesan);
-    localStorage.setItem("wa_sender_include_token", includeToken.toString());
+      localStorage.setItem("wa_sender_link", link);
+      localStorage.setItem("wa_sender_pesan", pesan);
+      localStorage.setItem("wa_sender_include_token", includeToken.toString());
     }
   }, [link, pesan, includeToken]);
 
@@ -504,7 +505,7 @@ export default function Home() {
   const previewMessage = useMemo(() => {
     if (!pesan.trim()) return "";
     const namaPreview = contacts[0]?.nama ?? "Budi Santoso";
-    
+
     const finalLinkPreview = getFinalLink(link || "https://nimantra.vercel.app/", includeToken);
     const idPreview = contacts[0]?.token ?? "ID123";
     return buildMessage(pesan, namaPreview, finalLinkPreview, idPreview);
@@ -630,7 +631,7 @@ export default function Home() {
             {feedback && <div className={styles.loginFeedback}>{feedback}</div>}
 
             <button className={styles.loginBtn} type="submit">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:18,height:18}}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" /></svg>
               Masuk
             </button>
           </form>
@@ -784,7 +785,7 @@ export default function Home() {
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
                         </span>
                       </div>
-                      <div className={styles.hint}>Gunakan <strong>{"{nama}"}</strong>, <strong>{"{link}"}</strong>, dan <strong>{"{id}"}</strong> (Token QR).</div>
+                      <div className={styles.hint}>Gunakan <strong>{"{nama}"}</strong>, <strong>{"{link}"}</strong>.</div>
                       {!pesan.trim() && <div className={styles.hintError}>Template pesan tidak boleh kosong.</div>}
                       {pesanMissingNama && <div className={styles.hintError}>Template harus mengandung <strong>{"{nama}"}</strong></div>}
                       {pesanMissingLink && <div className={styles.hintError}>Template harus mengandung <strong>{"{link}"}</strong></div>}
@@ -1026,7 +1027,7 @@ export default function Home() {
                   </div>
                 ) : (
                   <button className={styles.editCheckInBtn} onClick={() => setEditingContact({ ...editingContact, is_present: true, present_at: new Date().toISOString() })}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}><polyline points="20 6 9 17 4 12"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}><polyline points="20 6 9 17 4 12" /></svg>
                     Check-in Sekarang
                   </button>
                 )}
@@ -1061,18 +1062,18 @@ export default function Home() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
-            
+
             <div className={styles.editModalBody}>
               <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <div style={{ 
-                  width: "60px", 
-                  height: "60px", 
-                  background: "rgba(239, 68, 68, 0.1)", 
-                  color: "#ef4444", 
-                  borderRadius: "50%", 
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "center", 
+                <div style={{
+                  width: "60px",
+                  height: "60px",
+                  background: "rgba(239, 68, 68, 0.1)",
+                  color: "#ef4444",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   margin: "0 auto 16px",
                   fontSize: "24px",
                   fontWeight: 800
@@ -1090,8 +1091,8 @@ export default function Home() {
 
             <div className={styles.editModalFoot}>
               <button className={styles.editCancelBtn} onClick={() => setDeletingContact(null)}>Batal</button>
-              <button 
-                className={styles.editSaveBtn} 
+              <button
+                className={styles.editSaveBtn}
                 style={{ background: "#ef4444", boxShadow: "0 4px 12px rgba(239, 68, 68, 0.25)" }}
                 onClick={() => handleDeleteContact(deletingContact.id)}
               >
@@ -1162,7 +1163,7 @@ function ScannerOverlay({
           onScanSuccessRef.current(decodedText);
         },
         undefined
-      ).catch(() => {});
+      ).catch(() => { });
     }, 500);
 
     return () => {
@@ -1172,9 +1173,9 @@ function ScannerOverlay({
       if (scanner) {
         try {
           if (scanner.getState && scanner.getState() !== 1) {
-            scanner.stop().then(() => scanner.clear()).catch(() => {});
+            scanner.stop().then(() => scanner.clear()).catch(() => { });
           }
-        } catch {}
+        } catch { }
       }
       scannerRef.current = null;
     };

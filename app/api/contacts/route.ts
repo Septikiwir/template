@@ -33,7 +33,7 @@ const sanitizeNomor = (value: string) => {
 
 function normalizeContact(contact: IncomingContact) {
   const nama = typeof contact.nama === "string" ? contact.nama.trim() : "";
-  const nomorRaw = typeof contact.nomor === "string" ? contact.nomor.trim() : "";
+  const nomorRaw = contact.nomor != null ? String(contact.nomor).trim() : "";
   const nomor = sanitizeNomor(nomorRaw);
   const id = typeof contact.id === "number" ? contact.id : undefined;
   const is_vip = typeof contact.is_vip === "boolean" ? contact.is_vip : false;
