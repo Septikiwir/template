@@ -82,9 +82,9 @@ const formatGuestDate = (value: string) => {
   }).format(date);
 };
 
-const initialLocal = (key: string) => {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem(key) ?? "";
+const initialLocal = (key: string, fallback: string = "") => {
+  if (typeof window === "undefined") return fallback;
+  return localStorage.getItem(key) ?? fallback;
 };
 
 export default function Home() {
@@ -98,8 +98,8 @@ export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
   const [scannedContact, setScannedContact] = useState<Contact | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [link, setLink] = useState(() => initialLocal("wa_sender_link"));
-  const [pesan, setPesan] = useState(() => initialLocal("wa_sender_pesan"));
+  const [link, setLink] = useState(() => initialLocal("wa_sender_link", "https://nimantra.vercel.app/?to={nama}&token={id}"));
+  const [pesan, setPesan] = useState(() => initialLocal("wa_sender_pesan", "Halo {nama}, kami mengundang Anda ke acara pernikahan kami. Detail undangan dapat dilihat pada link berikut: {link}"));
   const [feedback, setFeedback] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [username, setUsername] = useState("");
@@ -108,6 +108,7 @@ export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [includeToken, setIncludeToken] = useState(() => initialLocal("wa_sender_include_token", "true") === "true");
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Contact | 'no'; direction: 'asc' | 'desc' }>({ key: 'is_present', direction: 'desc' });
   const [importOpen, setImportOpen] = useState(true);
@@ -269,15 +270,11 @@ export default function Home() {
   // 3. Local Storage Sync
   useEffect(() => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("wa_sender_link", link);
+    localStorage.setItem("wa_sender_link", link);
+    localStorage.setItem("wa_sender_pesan", pesan);
+    localStorage.setItem("wa_sender_include_token", includeToken.toString());
     }
-  }, [link]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("wa_sender_pesan", pesan);
-    }
-  }, [pesan]);
+  }, [link, pesan, includeToken]);
 
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -417,7 +414,14 @@ export default function Home() {
       return;
     }
 
-    const waUrl = `https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, link, contact.token))}`;
+    const getFinalLink = (rawLink: string) => {
+      if (!includeToken) return rawLink;
+      if (rawLink.includes("{id}") || rawLink.includes("token=")) return rawLink;
+      const separator = rawLink.includes("?") ? "&" : "?";
+      return `${rawLink}${separator}token={id}`;
+    };
+
+    const waUrl = `https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, getFinalLink(link.trim()), contact.token))}`;
     window.open(waUrl, "_blank");
 
     setContacts(prev => prev.map(c =>
@@ -449,10 +453,18 @@ export default function Home() {
   const previewMessage = useMemo(() => {
     if (!pesan.trim()) return "";
     const namaPreview = contacts[0]?.nama ?? "Budi Santoso";
-    const linkPreview = link.trim() || "https://contoh.com";
+    
+    const getFinalLinkPreview = (rawLink: string) => {
+      if (!includeToken) return rawLink;
+      if (rawLink.includes("{id}") || rawLink.includes("token=")) return rawLink;
+      const separator = rawLink.includes("?") ? "&" : "?";
+      return `${rawLink}${separator}token={id}`;
+    };
+
+    const linkPreview = getFinalLinkPreview(link.trim() || "https://nimantra.vercel.app/?to={nama}");
     const idPreview = contacts[0]?.token ?? "ID123";
     return buildMessage(pesan, namaPreview, linkPreview, idPreview);
-  }, [contacts, link, pesan]);
+  }, [contacts, link, pesan, includeToken]);
 
   const filteredGuestbook = useMemo(() => {
     const keyword = guestbookQuery.trim().toLowerCase();
@@ -509,97 +521,78 @@ export default function Home() {
   if (!session) {
     return (
       <div className={styles.loginWrapper}>
-        <header className={styles.header}>
-          <div className={styles.badge}>
-            <span className={styles.badgeDot} />
-            Login Pengirim
+        <div className={styles.loginCard}>
+          {/* Logo + Branding */}
+          <div className={styles.loginBrand}>
+            <div className={styles.loginLogo}>W</div>
+            <h1 className={styles.loginTitle}>WA Sender</h1>
           </div>
-          <h1 className={styles.title}>
-            Masuk Dulu
-            <br />
-            <span className={styles.titleAccent}>Sebelum Kirim.</span>
-          </h1>
-          <p className={styles.subtitle}>
-            Masukkan nama pengantin dan password untuk membuka fitur pengiriman WhatsApp.
-          </p>
-        </header>
 
-        <div className={styles.card}>
-          <form onSubmit={handleAuth}>
-            <div className={styles.field}>
-              <label htmlFor="username" className={styles.label}>
-                Nama Pengantin <span className={styles.req}>*</span>
-              </label>
-              <div className={styles.inputWrap}>
+          <div className={styles.loginDivider} />
+
+          {/* Heading */}
+          <div className={styles.loginHeading}>
+            <h2 className={styles.loginH2}>Masuk ke Dashboard</h2>
+            <p className={styles.loginDesc}>Masukkan kredensial untuk mengakses fitur pengiriman WhatsApp.</p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleAuth} className={styles.loginForm}>
+            <div className={styles.loginField}>
+              <label htmlFor="username" className={styles.loginLabel}>Nama Pengantin</label>
+              <div className={styles.loginInputWrap}>
+                <svg className={styles.loginInputIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>
                 <input
                   id="username"
                   type="text"
-                  className={styles.input}
+                  className={styles.loginInput}
                   placeholder="Contoh: Fizah-Hanif"
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
                   required
                 />
-                <span className={styles.inputIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="8" r="4" />
-                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-                  </svg>
-                </span>
               </div>
             </div>
 
-            <div className={styles.field}>
-              <label htmlFor="password" className={styles.label}>
-                Password <span className={styles.req}>*</span>
-              </label>
-              <div className={styles.inputWrap}>
+            <div className={styles.loginField}>
+              <label htmlFor="password" className={styles.loginLabel}>Password</label>
+              <div className={styles.loginInputWrap}>
+                <svg className={styles.loginInputIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="10" rx="2" /><path d="M7 11V8a5 5 0 0 1 10 0v3" /></svg>
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  className={styles.input}
+                  className={styles.loginInput}
                   placeholder="Masukkan password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
                 />
-                <span className={styles.inputIcon}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="10" rx="2" />
-                    <path d="M7 11V8a5 5 0 0 1 10 0v3" />
-                  </svg>
-                </span>
                 <button
                   type="button"
-                  className={styles.eyeBtn}
+                  className={styles.loginEyeBtn}
                   onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                  aria-label={showPassword ? "Sembunyikan" : "Tampilkan"}
                 >
                   {showPassword ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                   )}
                 </button>
               </div>
             </div>
 
-            {loginError && <div className={styles.hintError}>{loginError}</div>}
-            {feedback && <div className={styles.hint}>{feedback}</div>}
+            {loginError && <div className={styles.loginError}>{loginError}</div>}
+            {feedback && <div className={styles.loginFeedback}>{feedback}</div>}
 
-            <button className={styles.btn} type="submit">
-              Login
+            <button className={styles.loginBtn} type="submit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:18,height:18}}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+              Masuk
             </button>
           </form>
-        </div>
 
-        <p className={styles.footerNote}>Halaman utama hanya bisa diakses setelah login berhasil.</p>
+          <p className={styles.loginFooterText}>Akses terbatas hanya untuk pengguna terdaftar.</p>
+        </div>
       </div>
     );
   }
@@ -711,6 +704,23 @@ export default function Home() {
                     <span className={`${styles.panelToggle} ${configOpen ? styles.panelToggleOpen : ""}`}>▾</span>
                   </div>
                   <div className={configOpen ? styles.panelBody : styles.panelBodyHidden}>
+                    <div className={styles.field} style={{ marginBottom: "var(--space-2)" }}>
+                      <div className={styles.toggleRow} style={{ background: "transparent", border: "none", padding: 0 }}>
+                        <div className={styles.toggleLabel}>
+                          <span className={styles.toggleTitle}>Lampirkan Token QR</span>
+                          <span className={styles.toggleDesc}>Otomatis tambahkan token ke link</span>
+                        </div>
+                        <label className={styles.switch}>
+                          <input
+                            type="checkbox"
+                            checked={includeToken}
+                            onChange={(e) => setIncludeToken(e.target.checked)}
+                          />
+                          <span className={styles.slider}></span>
+                        </label>
+                      </div>
+                    </div>
+
                     <div className={styles.field}>
                       <label htmlFor="link" className={styles.label}>Link / URL <span className={styles.req}>*</span></label>
                       <div className={styles.inputWrap}>
@@ -730,7 +740,7 @@ export default function Home() {
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
                         </span>
                       </div>
-                      <div className={styles.hint}>Wajib gunakan <strong>{"{nama}"}</strong> dan <strong>{"{link}"}</strong>.</div>
+                      <div className={styles.hint}>Gunakan <strong>{"{nama}"}</strong>, <strong>{"{link}"}</strong>, dan <strong>{"{id}"}</strong> (Token QR).</div>
                       {!pesan.trim() && <div className={styles.hintError}>Template pesan tidak boleh kosong.</div>}
                       {pesanMissingNama && <div className={styles.hintError}>Template harus mengandung <strong>{"{nama}"}</strong></div>}
                       {pesanMissingLink && <div className={styles.hintError}>Template harus mengandung <strong>{"{link}"}</strong></div>}
