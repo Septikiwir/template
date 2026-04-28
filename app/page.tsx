@@ -225,18 +225,27 @@ export default function Home() {
     }
   };
 
-  const handleScanSuccess = async (decodedText: string) => {
-    // Bersihkan hasil scan dari spasi atau karakter aneh
-    const cleanToken = decodedText.trim();
+  const playSound = (type: "success" | "vip" | "error") => {
+    const sounds = {
+      success: "https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3",
+      vip: "https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3",
+      error: "https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3"
+    };
+    const audio = new Audio(sounds[type]);
+    audio.play().catch(() => { });
+  };
 
-    // Cari tamu berdasarkan token
+  const handleScanSuccess = async (decodedText: string) => {
+    const cleanToken = decodedText.trim();
     const contact = contacts.find(c => c.token === cleanToken);
 
     if (contact) {
       if (contact.is_present) {
+        playSound("success");
         setFeedback(`${contact.nama} sudah hadir sebelumnya.`);
         setScannedContact(contact);
       } else {
+        playSound(contact.is_vip ? "vip" : "success");
         const now = new Date().toISOString();
         const updated = { ...contact, is_present: true, present_at: now };
 
@@ -250,6 +259,7 @@ export default function Home() {
         }
       }
     } else {
+      playSound("error");
       setErrorMessage("ID Tamu Tidak Valid: " + decodedText);
     }
   };
