@@ -546,11 +546,14 @@ export default function Home() {
     return buildMessage(pesan, namaPreview, finalLinkPreview, idPreview);
   }, [contacts, link, pesan, includeToken]);
 
+  const guestbookBaseList = useMemo(() => {
+    // Hanya tamu yang sudah dikirim atau sudah hadir
+    return contacts.filter(c => c.is_sent || c.is_present);
+  }, [contacts]);
+
   const filteredGuestbook = useMemo(() => {
     const keyword = guestbookQuery.trim().toLowerCase();
-
-    // Tahap 1: Saring tamu yang sudah dikirim atau sudah hadir
-    let processed = contacts.filter(c => c.is_sent || c.is_present);
+    let processed = [...guestbookBaseList];
 
     // Tahap 2: Saring berdasarkan pencarian jika ada kata kunci
     if (keyword) {
@@ -562,7 +565,7 @@ export default function Home() {
     }
 
     // Tahap 3: Pengurutan (Sorting)
-    return [...processed].sort((a, b) => {
+    return processed.sort((a, b) => {
       if (sortConfig.key === 'no') return 0; // Biarkan nomor urut tetap
 
       let valA = a[sortConfig.key as keyof Contact];
@@ -580,7 +583,7 @@ export default function Home() {
       if (valA! > valB!) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [contacts, guestbookQuery, sortConfig]);
+  }, [guestbookBaseList, guestbookQuery, sortConfig]);
 
   const toggleSort = (key: keyof Contact | 'no') => {
     setSortConfig(prev => ({
@@ -717,6 +720,15 @@ export default function Home() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
             </span>
             Buku Tamu
+          </button>
+          <button
+            className={styles.sidebarItem}
+            onClick={() => setIsScanning(true)}
+          >
+            <span className={styles.sidebarIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg>
+            </span>
+            Scan QR
           </button>
         </nav>
 
@@ -899,15 +911,15 @@ export default function Home() {
                 {/* Stats Row */}
                 <div className={styles.statsRow}>
                   <div className={styles.statItem}>
-                    <div className={styles.statNumber}>{filteredGuestbook.length}</div>
+                    <div className={styles.statNumber}>{guestbookBaseList.length}</div>
                     <div className={styles.statLabel2}>Tamu</div>
                   </div>
                   <div className={`${styles.statItem} ${styles.statAccent}`}>
-                    <div className={styles.statNumber}>{filteredGuestbook.filter(c => c.is_sent && !c.is_present).length}</div>
+                    <div className={styles.statNumber}>{guestbookBaseList.filter(c => c.is_sent && !c.is_present).length}</div>
                     <div className={styles.statLabel2}>Pending</div>
                   </div>
                   <div className={`${styles.statItem} ${styles.statAccent}`}>
-                    <div className={styles.statNumber}>{filteredGuestbook.filter(c => c.is_present).length}</div>
+                    <div className={styles.statNumber}>{guestbookBaseList.filter(c => c.is_present).length}</div>
                     <div className={styles.statLabel2}>Hadir</div>
                   </div>
                 </div>
@@ -924,14 +936,6 @@ export default function Home() {
                         value={guestbookQuery}
                         onChange={(e) => setGuestbookQuery(e.target.value)}
                       />
-                    </div>
-                    <div style={{ marginTop: "var(--space-1)" }}>
-                      <button className={styles.btn} onClick={() => setIsScanning(true)} style={{ width: "100%", justifyContent: "center" }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18, marginRight: 8 }}>
-                          <path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><rect x="7" y="7" width="10" height="10" rx="1" />
-                        </svg>
-                        Scan QR Tamu
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -1001,6 +1005,12 @@ export default function Home() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
           </span>
           Buku Tamu
+        </button>
+        <button className={styles.bottomNavItem} onClick={() => setIsScanning(true)}>
+          <span className={styles.bottomNavIcon}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg>
+          </span>
+          Scan QR
         </button>
       </nav>
 
@@ -1264,7 +1274,7 @@ function ScannerOverlay({
   }, [scannedContact, onReset]);
 
   return (
-    <div className={styles.modalOverlay}>
+    <div className={styles.scannerOverlay}>
       <div className={styles.scannerCard}>
         <div className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
