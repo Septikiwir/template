@@ -62,10 +62,34 @@ const parseBulkInput = (bulkInput: string) => {
   return { validContacts, invalidLines };
 };
 
+const getFinalLink = (rawLink: string, includeToken: boolean) => {
+  let processed = rawLink.trim();
+  if (!processed) return "";
+  
+  // Pastikan to={nama} ada (kecuali sudah ada to= atau {nama})
+  if (!processed.includes("{nama}") && !processed.includes("to=")) {
+    const separator = processed.includes("?") ? "&" : "?";
+    processed = `${processed}${separator}to={nama}`;
+  }
+  
+  // Pastikan token={id} ada jika diaktifkan (kecuali sudah ada token= atau {id})
+  if (includeToken && !processed.includes("{id}") && !processed.includes("token=")) {
+    const separator = processed.includes("?") ? "&" : "?";
+    processed = `${processed}${separator}token={id}`;
+  }
+  
+  return processed;
+};
+
 const buildMessage = (template: string, nama: string, link: string, id: string = "TOKEN") => {
+  // Proses link terlebih dahulu untuk mengganti placeholder di dalamnya
+  const finalizedLink = link
+    .replace(/\{nama\}/g, encodeURIComponent(nama))
+    .replace(/\{id\}/g, id);
+
   return template
     .replace(/\{nama\}/g, nama)
-    .replace(/\{link\}/g, link)
+    .replace(/\{link\}/g, finalizedLink)
     .replace(/\{id\}/g, id);
 };
 
@@ -379,7 +403,8 @@ export default function Home() {
     }));
 
     contacts.forEach((contact, index) => {
-      const msg = buildMessage(pesan, contact.nama, link.trim(), contact.token);
+      const finalLink = getFinalLink(link, includeToken);
+      const msg = buildMessage(pesan, contact.nama, finalLink, contact.token);
       const encoded = encodeURIComponent(msg);
       const waUrl = `https://wa.me/${contact.nomor}?text=${encoded}`;
 
@@ -414,14 +439,8 @@ export default function Home() {
       return;
     }
 
-    const getFinalLink = (rawLink: string) => {
-      if (!includeToken) return rawLink;
-      if (rawLink.includes("{id}") || rawLink.includes("token=")) return rawLink;
-      const separator = rawLink.includes("?") ? "&" : "?";
-      return `${rawLink}${separator}token={id}`;
-    };
-
-    const waUrl = `https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, getFinalLink(link.trim()), contact.token))}`;
+    const finalLink = getFinalLink(link, includeToken);
+    const waUrl = `https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, finalLink, contact.token))}`;
     window.open(waUrl, "_blank");
 
     setContacts(prev => prev.map(c =>
@@ -454,16 +473,9 @@ export default function Home() {
     if (!pesan.trim()) return "";
     const namaPreview = contacts[0]?.nama ?? "Budi Santoso";
     
-    const getFinalLinkPreview = (rawLink: string) => {
-      if (!includeToken) return rawLink;
-      if (rawLink.includes("{id}") || rawLink.includes("token=")) return rawLink;
-      const separator = rawLink.includes("?") ? "&" : "?";
-      return `${rawLink}${separator}token={id}`;
-    };
-
-    const linkPreview = getFinalLinkPreview(link.trim() || "https://nimantra.vercel.app/?to={nama}");
+    const finalLinkPreview = getFinalLink(link || "https://nimantra.vercel.app/", includeToken);
     const idPreview = contacts[0]?.token ?? "ID123";
-    return buildMessage(pesan, namaPreview, linkPreview, idPreview);
+    return buildMessage(pesan, namaPreview, finalLinkPreview, idPreview);
   }, [contacts, link, pesan, includeToken]);
 
   const filteredGuestbook = useMemo(() => {
