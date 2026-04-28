@@ -160,3 +160,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const supabase = getSupabaseUserClient(request);
+    if (!supabase) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "ID tamu wajib diisi." }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("contacts")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("DEBUG API ERROR DELETE:", error);
+    return NextResponse.json({ error: error.message || "Gagal menghapus kontak." }, { status: 500 });
+  }
+}

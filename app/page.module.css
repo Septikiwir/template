@@ -1286,7 +1286,7 @@
 /* Table head — always visible with sort */
 .egmsTableHead {
   display: grid;
-  grid-template-columns: 36px 1fr 60px 80px 50px;
+  grid-template-columns: 36px 1fr 60px 80px 100px;
   align-items: center;
   padding: 10px 12px;
   gap: 6px;
@@ -1299,7 +1299,7 @@
 /* Row layout — grid on all sizes */
 .egmsRow {
   display: grid;
-  grid-template-columns: 36px 1fr 60px 80px 50px;
+  grid-template-columns: 36px 1fr 60px 80px 100px;
   align-items: center;
   padding: 10px 12px;
   gap: 6px;
@@ -1314,6 +1314,12 @@
 .egmsCell {
   font-size: 14px;
   color: var(--text-secondary);
+}
+
+.actionCell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .egmsCellStrong {
@@ -1366,13 +1372,13 @@
 /* Tablet+ table layout — wider columns */
 @media (min-width: 640px) {
   .egmsTableHead {
-    grid-template-columns: 40px 1fr 60px 90px 50px;
+    grid-template-columns: 40px 1fr 60px 90px 100px;
     padding: 12px 14px;
     gap: 8px;
   }
 
   .egmsRow {
-    grid-template-columns: 40px 1fr 60px 90px 50px;
+    grid-template-columns: 40px 1fr 60px 90px 100px;
     padding: 12px 14px;
     gap: 8px;
   }

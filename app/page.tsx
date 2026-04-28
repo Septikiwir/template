@@ -134,6 +134,7 @@ export default function Home() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [includeToken, setIncludeToken] = useState(() => initialLocal("wa_sender_include_token", "true") === "true");
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Contact | 'no'; direction: 'asc' | 'desc' }>({ key: 'is_present', direction: 'desc' });
   const [importOpen, setImportOpen] = useState(true);
   const [configOpen, setConfigOpen] = useState(true);
@@ -192,6 +193,30 @@ export default function Home() {
       const message = error instanceof Error ? error.message : "Gagal menyimpan.";
       setErrorMessage(message);
       handleLoadContacts();
+    }
+  };
+
+  const handleDeleteContact = async (id: number) => {
+    if (!session) return;
+
+    try {
+      const response = await fetch(`/api/contacts?id=${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Gagal menghapus.");
+      }
+
+      setFeedback("Tamu berhasil dihapus.");
+      setContacts(prev => prev.filter(c => c.id !== id));
+      setDeletingContact(null);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Gagal menghapus.");
     }
   };
 
@@ -896,10 +921,15 @@ export default function Home() {
                           <div className={styles.egmsCell}>
                             {contact.is_present ? <span className={styles.statusHadir}>Hadir</span> : isSent ? <span className={styles.statusSent}>Terkirim</span> : <span className={styles.statusPending}>Belum</span>}
                           </div>
-                          <div className={styles.egmsCell}>
+                          <div className={styles.actionCell}>
                             <button className={styles.actionBtn} onClick={() => setEditingContact(contact)} title="Edit Tamu">
                               <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </button>
+                            <button className={styles.actionBtn} onClick={() => setDeletingContact(contact)} title="Hapus Tamu" style={{ color: "var(--danger)" }}>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
                               </svg>
                             </button>
                           </div>
@@ -1012,6 +1042,57 @@ export default function Home() {
             <div className={styles.editModalFoot}>
               <button className={styles.editCancelBtn} onClick={() => setEditingContact(null)}>Batal</button>
               <button className={styles.editSaveBtn} onClick={() => handleUpdateContact(editingContact)}>Simpan Perubahan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Delete Confirmation Modal ─── */}
+      {deletingContact && (
+        <div className={styles.modalOverlay} onClick={() => setDeletingContact(null)}>
+          <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.editModalHead}>
+              <h3 className={styles.editModalTitle}>Hapus Tamu</h3>
+              <button className={styles.editModalClose} onClick={() => setDeletingContact(null)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            
+            <div className={styles.editModalBody}>
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <div style={{ 
+                  width: "60px", 
+                  height: "60px", 
+                  background: "rgba(239, 68, 68, 0.1)", 
+                  color: "#ef4444", 
+                  borderRadius: "50%", 
+                  display: "flex", 
+                  alignItems: "center", 
+                  justifyContent: "center", 
+                  margin: "0 auto 16px",
+                  fontSize: "24px",
+                  fontWeight: 800
+                }}>
+                  !
+                </div>
+                <p style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "8px" }}>
+                  Hapus "{deletingContact.nama}"?
+                </p>
+                <p style={{ fontSize: "14px", color: "var(--text-hint)", lineHeight: 1.5 }}>
+                  Tindakan ini tidak dapat dibatalkan. Tamu ini akan dihapus permanen dari daftar.
+                </p>
+              </div>
+            </div>
+
+            <div className={styles.editModalFoot}>
+              <button className={styles.editCancelBtn} onClick={() => setDeletingContact(null)}>Batal</button>
+              <button 
+                className={styles.editSaveBtn} 
+                style={{ background: "#ef4444", boxShadow: "0 4px 12px rgba(239, 68, 68, 0.25)" }}
+                onClick={() => handleDeleteContact(deletingContact.id)}
+              >
+                Hapus Sekarang
+              </button>
             </div>
           </div>
         </div>
