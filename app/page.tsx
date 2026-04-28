@@ -134,6 +134,8 @@ export default function Home() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [includeToken, setIncludeToken] = useState(() => initialLocal("wa_sender_include_token", "true") === "true");
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [initialEditingContact, setInitialEditingContact] = useState<string | null>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Contact | 'no'; direction: 'asc' | 'desc' }>({ key: 'is_present', direction: 'desc' });
   const [importOpen, setImportOpen] = useState(true);
@@ -156,6 +158,28 @@ export default function Home() {
       return () => clearTimeout(timer);
     }
   }, [feedback, errorMessage]);
+
+  const handleStartEdit = (contact: Contact) => {
+    setEditingContact(contact);
+    setInitialEditingContact(JSON.stringify(contact));
+  };
+
+  const handleCloseEdit = () => {
+    if (!editingContact) {
+      setEditingContact(null);
+      setInitialEditingContact(null);
+      return;
+    }
+
+    const isDirty = JSON.stringify(editingContact) !== initialEditingContact;
+
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+    } else {
+      setEditingContact(null);
+      setInitialEditingContact(null);
+    }
+  };
 
   const handleUpdateContact = async (updated: Contact) => {
     if (!session) return;
@@ -189,6 +213,7 @@ export default function Home() {
       }
 
       setFeedback("Perubahan berhasil disimpan.");
+      setInitialEditingContact(null);
       setEditingContact(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gagal menyimpan.";
@@ -937,7 +962,7 @@ export default function Home() {
                             {contact.is_present ? <span className={styles.statusHadir}>Hadir</span> : isSent ? <span className={styles.statusSent}>Terkirim</span> : <span className={styles.statusPending}>Belum</span>}
                           </div>
                           <div className={styles.actionCell}>
-                            <button className={styles.actionBtn} onClick={() => setEditingContact(contact)} title="Edit Tamu">
+                            <button className={styles.actionBtn} onClick={() => handleStartEdit(contact)} title="Edit Tamu">
                               <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
@@ -981,12 +1006,12 @@ export default function Home() {
 
       {/* ─── Edit Guest Modal ─── */}
       {editingContact && (
-        <div className={styles.modalOverlay} onClick={() => setEditingContact(null)}>
+        <div className={styles.modalOverlay} onClick={handleCloseEdit}>
           <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className={styles.editModalHead}>
               <h3 className={styles.editModalTitle}>Edit Tamu</h3>
-              <button className={styles.editModalClose} onClick={() => setEditingContact(null)}>
+              <button className={styles.editModalClose} onClick={handleCloseEdit}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
@@ -1055,7 +1080,7 @@ export default function Home() {
 
             {/* Footer */}
             <div className={styles.editModalFoot}>
-              <button className={styles.editCancelBtn} onClick={() => setEditingContact(null)}>Batal</button>
+              <button className={styles.editCancelBtn} onClick={handleCloseEdit}>Batal</button>
               <button className={styles.editSaveBtn} onClick={() => handleUpdateContact(editingContact)}>Simpan Perubahan</button>
             </div>
           </div>
@@ -1107,6 +1132,43 @@ export default function Home() {
                 onClick={() => handleDeleteContact(deletingContact.id)}
               >
                 Hapus Sekarang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Discard Changes Confirmation Modal ─── */}
+      {showDiscardConfirm && (
+        <div className={styles.modalOverlay} style={{ zIndex: 3000 }} onClick={() => setShowDiscardConfirm(false)}>
+          <div className={styles.editModal} style={{ maxWidth: "380px" }} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.editModalHead}>
+              <h3 className={styles.editModalTitle}>Perubahan Belum Disimpan</h3>
+              <button className={styles.editModalClose} onClick={() => setShowDiscardConfirm(false)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            
+            <div className={styles.editModalBody}>
+              <div style={{ textAlign: "center", padding: "10px 0" }}>
+                <p style={{ fontSize: "15px", color: "var(--text-primary)", lineHeight: 1.5 }}>
+                  Anda memiliki perubahan yang belum disimpan. Yakin ingin membatalkan?
+                </p>
+              </div>
+            </div>
+
+            <div className={styles.editModalFoot}>
+              <button className={styles.editCancelBtn} onClick={() => setShowDiscardConfirm(false)}>Lanjut Edit</button>
+              <button 
+                className={styles.editSaveBtn} 
+                style={{ background: "#f59e0b", boxShadow: "0 4px 12px rgba(245, 158, 11, 0.25)" }}
+                onClick={() => {
+                  setEditingContact(null);
+                  setInitialEditingContact(null);
+                  setShowDiscardConfirm(false);
+                }}
+              >
+                Buang Perubahan
               </button>
             </div>
           </div>
