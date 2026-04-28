@@ -259,7 +259,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       contacts: data ?? [],
-      savedCount: (dedupedByNomor.length + checkinTargets.length)
+      savedCount: dedupedByNomor.length
     });
   } catch (error: any) {
     console.error("DEBUG API ERROR POST:", error);

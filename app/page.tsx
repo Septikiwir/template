@@ -181,7 +181,7 @@ export default function Home() {
     }
   };
 
-  const handleUpdateContact = async (updated: Contact) => {
+  const handleUpdateContact = async (updated: Contact, action?: "checkin") => {
     if (!session) return;
     try {
       setContacts(prev => prev.map(c =>
@@ -195,6 +195,7 @@ export default function Home() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
+          action,
           contacts: [{
             id: updated.id,
             nama: updated.nama,
@@ -278,7 +279,7 @@ export default function Home() {
         setScannedContact(updated);
 
         try {
-          await handleUpdateContact(updated);
+          await handleUpdateContact(updated, "checkin");
         } catch (err) {
           setErrorMessage("Gagal menyimpan kehadiran.");
         }
