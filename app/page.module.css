@@ -1798,8 +1798,40 @@
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
+}
+
+.readerMirrored video {
   transform: scaleX(-1) !important;
   -webkit-transform: scaleX(-1) !important;
+}
+
+.cameraToggle {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cameraToggle:hover {
+  background: rgba(0, 0, 0, 0.7);
+  transform: scale(1.05);
+}
+
+.cameraToggle svg {
+  width: 20px;
+  height: 20px;
 }
 
 .egmsActions {

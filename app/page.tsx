@@ -1191,6 +1191,20 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Floating Toast Notifications */}
+      {feedback && (
+        <div key={`fb-${feedback}`} className={styles.toastSuccess}>
+          <div className={styles.toastIcon}>✓</div>
+          <span>{feedback}</span>
+        </div>
+      )}
+      {errorMessage && (
+        <div key={`err-${errorMessage}`} className={styles.toastError}>
+          <div className={styles.toastIcon}>!</div>
+          <span>{errorMessage}</span>
+        </div>
+      )}
     </div>
   );
 
@@ -1209,6 +1223,12 @@ function ScannerView({
   const scannerRef = useRef<any>(null);
   const onScanSuccessRef = useRef(onScanSuccess);
   onScanSuccessRef.current = onScanSuccess;
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
+
+  const toggleCamera = () => {
+    setFacingMode(prev => (prev === "environment" ? "user" : "environment"));
+    // Restart scanner logic will handle the change because facingMode is in dependency array
+  };
 
   useEffect(() => {
     if (scannedContact) return;
@@ -1219,8 +1239,8 @@ function ScannerView({
 
       const html5QrCode = new Html5Qrcode("reader");
       scannerRef.current = html5QrCode;
-      const config = { 
-        fps: 20, 
+      const config = {
+        fps: 20,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
           const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
           const size = Math.floor(minEdge * 0.65);
@@ -1230,7 +1250,7 @@ function ScannerView({
       };
 
       html5QrCode.start(
-        { facingMode: "environment" },
+        { facingMode: facingMode },
         config,
         (decodedText) => {
           onScanSuccessRef.current(decodedText);
@@ -1252,7 +1272,7 @@ function ScannerView({
       }
       scannerRef.current = null;
     };
-  }, [scannedContact]);
+  }, [scannedContact, facingMode]);
 
   // Auto-dismiss after scan: 1s for regular, 3s for VIP
   useEffect(() => {
@@ -1295,7 +1315,20 @@ function ScannerView({
           </div>
         ) : (
           <div className={styles.readerWrapper}>
-            <div id="reader" className={styles.reader}></div>
+            <button
+              className={styles.cameraToggle}
+              onClick={toggleCamera}
+              title="Ganti Kamera"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </button>
+            <div
+              id="reader"
+              className={`${styles.reader} ${facingMode === "user" ? styles.readerMirrored : ""}`}
+            ></div>
             <div className={styles.scannerOverlayFrame}>
               <div className={styles.scannerFrameCorners}></div>
             </div>
