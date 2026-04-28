@@ -213,6 +213,10 @@ export default function Home() {
       }
 
       setFeedback("Tamu berhasil dihapus.");
+      const deletedContact = contacts.find(c => c.id === id);
+      if (deletedContact) {
+        setSentNomors(prev => prev.filter(num => num !== deletedContact.nomor));
+      }
       setContacts(prev => prev.filter(c => c.id !== id));
       setDeletingContact(null);
     } catch (error) {
@@ -495,7 +499,7 @@ export default function Home() {
     }
   };
 
-  const sentCount = sentNomors.length;
+  const sentCount = contacts.filter(c => c.is_sent || sentNomors.includes(c.nomor)).length;
 
   const previewMessage = useMemo(() => {
     if (!pesan.trim()) return "";
