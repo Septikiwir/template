@@ -176,7 +176,8 @@ export default function Home() {
             nomor: updated.nomor,
             is_vip: updated.is_vip,
             is_sent: updated.is_sent,
-            is_present: updated.is_present
+            is_present: updated.is_present,
+            token: updated.token
           }]
         }),
       });
@@ -399,7 +400,8 @@ export default function Home() {
       id: c.id,
       nama: c.nama,
       nomor: c.nomor,
-      is_sent: true
+      is_sent: true,
+      token: c.token
     }));
 
     contacts.forEach((contact, index) => {
@@ -460,7 +462,8 @@ export default function Home() {
             id: contact.id,
             nama: contact.nama,
             nomor: contact.nomor,
-            is_sent: true
+            is_sent: true,
+            token: contact.token
           }]
         }),
       });
