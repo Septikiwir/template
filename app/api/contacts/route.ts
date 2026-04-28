@@ -40,7 +40,7 @@ function normalizeContact(contact: IncomingContact) {
   const is_sent = typeof contact.is_sent === "boolean" ? contact.is_sent : false;
   const is_present = typeof contact.is_present === "boolean" ? contact.is_present : false;
   const present_at = typeof contact.present_at === "string" ? contact.present_at : null;
-  const token = typeof contact.token === "string" ? contact.token : generateToken();
+  const token = typeof contact.token === "string" ? contact.token : undefined;
 
   if (!nama || !nomor) {
     return null;
@@ -129,8 +129,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Tidak ada kontak valid untuk disimpan." }, { status: 400 });
     }
 
+    // 1. Dapatkan nomor telepon unik dari payload
+    const nomors = Array.from(new Set(normalizedContacts.map(c => c.nomor)));
+
+    // 2. Cek data yang sudah ada di DB
+    const { data: existing } = await supabase
+      .from("contacts")
+      .select("nomor, token")
+      .eq("user_id", user.id)
+      .in("nomor", nomors);
+
+    const existingTokenMap = new Map(existing?.map(e => [e.nomor, e.token]) || []);
+
+    // 3. Pastikan setiap kontak memiliki token (gunakan yang lama jika ada, atau generate baru jika benar-benar baru)
+    const finalContacts = normalizedContacts.map(c => {
+      const existingToken = existingTokenMap.get(c.nomor);
+      return {
+        ...c,
+        token: c.token || existingToken || generateToken()
+      };
+    });
+
     const dedupedByNomor = Array.from(
-      new Map(normalizedContacts.map((contact) => [contact.nomor, contact])).values()
+      new Map(finalContacts.map((contact) => [contact.nomor, contact])).values()
     );
 
     const { error: upsertError } = await supabase
