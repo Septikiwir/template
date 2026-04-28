@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
 import styles from "./page.module.css";
@@ -1030,29 +1030,54 @@ function ScannerOverlay({
   scannedContact: Contact | null;
   onReset: () => void;
 }) {
+  const scannerRef = useRef<any>(null);
+  const onScanSuccessRef = useRef(onScanSuccess);
+  onScanSuccessRef.current = onScanSuccess;
+
   useEffect(() => {
-    if (scannedContact) return; // Stop scanner if showing result
+    if (scannedContact) return;
 
-    const html5QrCode = new Html5Qrcode("reader");
-    const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+    let cancelled = false;
+    const startDelay = setTimeout(() => {
+      if (cancelled) return;
 
-    html5QrCode.start(
-      { facingMode: "environment" },
-      config,
-      (decodedText) => {
-        onScanSuccess(decodedText);
-      },
-      undefined
-    ).catch(err => {
-      console.error("Gagal menjalankan scanner:", err);
-    });
+      const html5QrCode = new Html5Qrcode("reader");
+      scannerRef.current = html5QrCode;
+      const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText) => {
+          onScanSuccessRef.current(decodedText);
+        },
+        undefined
+      ).catch(() => {});
+    }, 500);
 
     return () => {
-      if (html5QrCode.isScanning) {
-        html5QrCode.stop().catch(err => console.error(err));
+      cancelled = true;
+      clearTimeout(startDelay);
+      const scanner = scannerRef.current;
+      if (scanner) {
+        try {
+          if (scanner.getState && scanner.getState() !== 1) {
+            scanner.stop().then(() => scanner.clear()).catch(() => {});
+          }
+        } catch {}
       }
+      scannerRef.current = null;
     };
-  }, [onScanSuccess, scannedContact]);
+  }, [scannedContact]);
+
+  // Auto-dismiss after 1 second when scan result is shown
+  useEffect(() => {
+    if (!scannedContact) return;
+    const timer = setTimeout(() => {
+      onReset();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [scannedContact, onReset]);
 
   return (
     <div className={styles.modalOverlay}>
