@@ -1710,6 +1710,11 @@
   min-height: 300px;
 }
 
+.reader video {
+  transform: scaleX(-1) !important;
+  -webkit-transform: scaleX(-1) !important;
+}
+
 .egmsActions {
   display: flex;
   gap: 12px;

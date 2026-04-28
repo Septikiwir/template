@@ -227,9 +227,9 @@ export default function Home() {
 
   const playSound = (type: "success" | "vip" | "error") => {
     const sounds = {
-      success: "https://assets.mixkit.co/active_storage/sfx/230/230-preview.mp3",
-      vip: "https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3",
-      error: "https://assets.mixkit.co/active_storage/sfx/941/941-preview.mp3"
+      success: "/Success.wav",
+      vip: "/Vip.wav",
+      error: "/Error.wav"
     };
     const audio = new Audio(sounds[type]);
     audio.play().catch(() => { });
