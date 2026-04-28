@@ -140,6 +140,11 @@ export default function Home() {
   const [sortConfig, setSortConfig] = useState<{ key: keyof Contact | 'no'; direction: 'asc' | 'desc' }>({ key: 'is_present', direction: 'desc' });
   const [importOpen, setImportOpen] = useState(true);
   const [configOpen, setConfigOpen] = useState(true);
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(() => initialLocal("wa_sender_sidebar_minimized", "false") === "true");
+
+  useEffect(() => {
+    localStorage.setItem("wa_sender_sidebar_minimized", isSidebarMinimized.toString());
+  }, [isSidebarMinimized]);
 
   // Helper to map username to internal email for Supabase Auth
   const getInternalEmail = (user: string) => `${user.trim().toLowerCase()}@wedding.com`;
@@ -690,6 +695,17 @@ export default function Home() {
       {/* ─── Top Bar ─── */}
       <div className={styles.topBar}>
         <div className={styles.topBarBrand}>
+          <button 
+            className={styles.menuToggle} 
+            onClick={() => setIsSidebarMinimized(!isSidebarMinimized)}
+            title={isSidebarMinimized ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
           <div className={styles.topBarLogo}>W</div>
           <span className={styles.topBarTitle}>Dashboard</span>
         </div>
@@ -703,7 +719,7 @@ export default function Home() {
       {/* ─── Body (sidebar + main) ─── */}
       <div className={styles.dashboardBody}>
         {/* Sidebar (desktop only) */}
-        <nav className={styles.sidebar}>
+        <nav className={`${styles.sidebar} ${isSidebarMinimized ? styles.sidebarMinimized : ""}`}>
           <button
             className={`${styles.sidebarItem} ${activeView === "send" ? styles.sidebarItemActive : ""}`}
             onClick={() => setActiveView("send")}
@@ -711,7 +727,7 @@ export default function Home() {
             <span className={styles.sidebarIcon}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
             </span>
-            Kirim Pesan
+            <span className={styles.sidebarLabel}>Kirim Pesan</span>
           </button>
           <button
             className={`${styles.sidebarItem} ${activeView === "guestbook" ? styles.sidebarItemActive : ""}`}
@@ -720,7 +736,7 @@ export default function Home() {
             <span className={styles.sidebarIcon}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
             </span>
-            Buku Tamu
+            <span className={styles.sidebarLabel}>Buku Tamu</span>
           </button>
           <button
             className={`${styles.sidebarItem} ${activeView === "scan" ? styles.sidebarItemActive : ""}`}
@@ -729,7 +745,7 @@ export default function Home() {
             <span className={styles.sidebarIcon}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg>
             </span>
-            Scan QR
+            <span className={styles.sidebarLabel}>Scan QR</span>
           </button>
         </nav>
 
@@ -1224,10 +1240,14 @@ function ScannerView({
   const onScanSuccessRef = useRef(onScanSuccess);
   onScanSuccessRef.current = onScanSuccess;
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
+  const [isMaximized, setIsMaximized] = useState(false);
 
   const toggleCamera = () => {
     setFacingMode(prev => (prev === "environment" ? "user" : "environment"));
-    // Restart scanner logic will handle the change because facingMode is in dependency array
+  };
+
+  const toggleMaximize = () => {
+    setIsMaximized(!isMaximized);
   };
 
   useEffect(() => {
@@ -1243,7 +1263,8 @@ function ScannerView({
         fps: 20,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
           const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const size = Math.floor(minEdge * 0.65);
+          // Increase scan area ratio from 0.65 to 0.8 for better reach
+          const size = Math.floor(minEdge * 0.8);
           return { width: size, height: size };
         },
         aspectRatio: 1.0
@@ -1285,7 +1306,7 @@ function ScannerView({
   }, [scannedContact, onReset]);
 
   return (
-    <div className={styles.scannerView}>
+    <div className={`${styles.scannerView} ${isMaximized ? styles.scannerViewMaximized : ""}`}>
       <h2 className={styles.pageTitle}>
         {scannedContact ? "Konfirmasi Kehadiran" : "Scan QR Code Tamu"}
       </h2>
@@ -1315,16 +1336,35 @@ function ScannerView({
           </div>
         ) : (
           <div className={styles.readerWrapper}>
-            <button
-              className={styles.cameraToggle}
-              onClick={toggleCamera}
-              title="Ganti Kamera"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
-              </svg>
-            </button>
+            <div className={styles.scannerActions}>
+              <button
+                className={styles.scannerActionBtn}
+                onClick={toggleCamera}
+                title="Ganti Kamera"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+              </button>
+              <button
+                className={styles.scannerActionBtn}
+                onClick={toggleMaximize}
+                title={isMaximized ? "Minimize" : "Maximize"}
+              >
+                {isMaximized ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" />
+                    <line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
+                    <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+                  </svg>
+                )}
+              </button>
+            </div>
             <div
               id="reader"
               className={`${styles.reader} ${facingMode === "user" ? styles.readerMirrored : ""}`}
