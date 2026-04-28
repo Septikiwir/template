@@ -121,8 +121,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const payload = (await request.json()) as { contacts?: IncomingContact[] };
+    const payload = (await request.json()) as { action?: string; contacts?: IncomingContact[] };
     const contactsRaw = Array.isArray(payload.contacts) ? payload.contacts : [];
+    const isCheckinAction = payload.action === "checkin";
 
     if (contactsRaw.length === 0) {
       return NextResponse.json({ error: "Data kontak kosong." }, { status: 400 });
@@ -156,57 +157,72 @@ export async function POST(request: Request) {
     const existingTokenMap = new Map(existing?.map(e => [e.nomor, e.token]) || []);
 
     // 2b. Handle check-in secara atomic dan tolak double check-in
-    const checkinTargets = normalizedContacts.filter(
-      (c: any) => c.is_present === true && c.present_at != null
-    );
+    if (isCheckinAction) {
+      const checkinTargets = normalizedContacts.filter(
+        (c: any) => c.is_present === true && c.present_at != null
+      );
 
-    if (checkinTargets.length > 0) {
-      const alreadyPresent: string[] = [];
-      const notFound: string[] = [];
+      if (checkinTargets.length > 0) {
+        const alreadyPresent: string[] = [];
+        const notFound: string[] = [];
 
-      for (const target of checkinTargets) {
-        const existingRow = existingByNomor.get(target.nomor);
-        if (!existingRow) {
-          notFound.push(target.nomor);
-          continue;
+        for (const target of checkinTargets) {
+          const existingRow = existingByNomor.get(target.nomor);
+          if (!existingRow) {
+            notFound.push(target.nomor);
+            continue;
+          }
+
+          if (existingRow.is_present === true) {
+            alreadyPresent.push(target.nomor);
+            continue;
+          }
+
+          const { data: updatedRows, error: updateError } = await supabase
+            .from("contacts")
+            .update({ is_present: true, present_at: target.present_at })
+            .eq("user_id", user.id)
+            .eq("nomor", target.nomor)
+            .or("is_present.eq.false,is_present.is.null")
+            .select("id");
+
+          if (updateError) {
+            throw updateError;
+          }
+
+          if (!updatedRows || updatedRows.length === 0) {
+            // Kemungkinan sudah di-check-in oleh request lain (race) atau record tidak match.
+            alreadyPresent.push(target.nomor);
+          }
         }
 
-        if (existingRow.is_present === true) {
-          alreadyPresent.push(target.nomor);
-          continue;
+        if (notFound.length > 0) {
+          return NextResponse.json(
+            { error: "Kontak tidak ditemukan untuk check-in.", nomors: notFound },
+            { status: 404 }
+          );
         }
 
-        const { data: updatedRows, error: updateError } = await supabase
-          .from("contacts")
-          .update({ is_present: true, present_at: target.present_at })
-          .eq("user_id", user.id)
-          .eq("nomor", target.nomor)
-          .or("is_present.eq.false,is_present.is.null")
-          .select("id");
-
-        if (updateError) {
-          throw updateError;
-        }
-
-        if (!updatedRows || updatedRows.length === 0) {
-          // Kemungkinan sudah di-check-in oleh request lain (race) atau record tidak match.
-          alreadyPresent.push(target.nomor);
+        if (alreadyPresent.length > 0) {
+          return NextResponse.json(
+            { error: "Check-in berulang tidak diizinkan.", nomors: alreadyPresent },
+            { status: 409 }
+          );
         }
       }
 
-      if (notFound.length > 0) {
-        return NextResponse.json(
-          { error: "Kontak tidak ditemukan untuk check-in.", nomors: notFound },
-          { status: 404 }
-        );
-      }
+      // Jika check-in berhasil, refetch dan return
+      const { data, error: selectError } = await supabase
+        .from("contacts")
+        .select("id, nama, nomor, created_at, is_vip, is_sent, is_present, present_at, token")
+        .order("created_at", { ascending: false });
 
-      if (alreadyPresent.length > 0) {
-        return NextResponse.json(
-          { error: "Check-in berulang tidak diizinkan.", nomors: alreadyPresent },
-          { status: 409 }
-        );
-      }
+      if (selectError) throw selectError;
+
+      return NextResponse.json({ 
+        contacts: data ?? [],
+        savedCount: checkinTargets.length
+      });
     }
 
     // 3. Pastikan setiap kontak memiliki token (gunakan yang lama jika ada, atau generate baru jika benar-benar baru)
@@ -218,13 +234,8 @@ export async function POST(request: Request) {
       };
     });
 
-    // Jangan ikut upsert lagi untuk request yang merupakan check-in (agar tidak menimpa field lain secara tidak sengaja)
-    const upsertCandidates = finalContacts.filter(
-      (c: any) => !(c.is_present === true && c.present_at != null)
-    );
-
     const dedupedByNomor = Array.from(
-      new Map(upsertCandidates.map((contact) => [contact.nomor, contact])).values()
+      new Map(finalContacts.map((contact) => [contact.nomor, contact])).values()
     );
 
     if (dedupedByNomor.length > 0) {
