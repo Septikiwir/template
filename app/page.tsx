@@ -202,6 +202,7 @@ export default function Home() {
             is_vip: updated.is_vip,
             is_sent: updated.is_sent,
             is_present: updated.is_present,
+            present_at: updated.present_at,
             token: updated.token
           }]
         }),
@@ -266,9 +267,8 @@ export default function Home() {
 
     if (contact) {
       if (contact.is_present) {
-        playSound("success");
-        setFeedback(`${contact.nama} sudah hadir sebelumnya.`);
-        setScannedContact(contact);
+        playSound("error");
+        setErrorMessage(`GAGAL: ${contact.nama} sudah melakukan check-in sebelumnya!`);
       } else {
         playSound(contact.is_vip ? "vip" : "success");
         const now = new Date().toISOString();

@@ -39,14 +39,22 @@ function normalizeContact(contact: IncomingContact) {
   const is_vip = typeof contact.is_vip === "boolean" ? contact.is_vip : false;
   const is_sent = typeof contact.is_sent === "boolean" ? contact.is_sent : false;
   const is_present = typeof contact.is_present === "boolean" ? contact.is_present : false;
-  const present_at = typeof contact.present_at === "string" ? contact.present_at : null;
+  const present_at =
+    contact.present_at === null
+      ? null
+      : typeof contact.present_at === "string"
+        ? contact.present_at
+        : undefined;
   const token = typeof contact.token === "string" ? contact.token : undefined;
 
   if (!nama || !nomor) {
     return null;
   }
 
-  const result: any = { nama, nomor, is_vip, is_sent, is_present, present_at, token };
+  const result: any = { nama, nomor, is_vip, is_sent, is_present, token };
+  if (present_at !== undefined) {
+    result.present_at = present_at;
+  }
   if (id !== undefined) {
     result.id = id;
   }
@@ -133,13 +141,73 @@ export async function POST(request: Request) {
     const nomors = Array.from(new Set(normalizedContacts.map(c => c.nomor)));
 
     // 2. Cek data yang sudah ada di DB
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("contacts")
-      .select("nomor, token")
+      .select("nomor, token, is_present, present_at")
       .eq("user_id", user.id)
       .in("nomor", nomors);
 
+    if (existingError) {
+      throw existingError;
+    }
+
+    const existingByNomor = new Map((existing ?? []).map((row: any) => [row.nomor, row]));
+
     const existingTokenMap = new Map(existing?.map(e => [e.nomor, e.token]) || []);
+
+    // 2b. Handle check-in secara atomic dan tolak double check-in
+    const checkinTargets = normalizedContacts.filter(
+      (c: any) => c.is_present === true && c.present_at != null
+    );
+
+    if (checkinTargets.length > 0) {
+      const alreadyPresent: string[] = [];
+      const notFound: string[] = [];
+
+      for (const target of checkinTargets) {
+        const existingRow = existingByNomor.get(target.nomor);
+        if (!existingRow) {
+          notFound.push(target.nomor);
+          continue;
+        }
+
+        if (existingRow.is_present === true) {
+          alreadyPresent.push(target.nomor);
+          continue;
+        }
+
+        const { data: updatedRows, error: updateError } = await supabase
+          .from("contacts")
+          .update({ is_present: true, present_at: target.present_at })
+          .eq("user_id", user.id)
+          .eq("nomor", target.nomor)
+          .or("is_present.eq.false,is_present.is.null")
+          .select("id");
+
+        if (updateError) {
+          throw updateError;
+        }
+
+        if (!updatedRows || updatedRows.length === 0) {
+          // Kemungkinan sudah di-check-in oleh request lain (race) atau record tidak match.
+          alreadyPresent.push(target.nomor);
+        }
+      }
+
+      if (notFound.length > 0) {
+        return NextResponse.json(
+          { error: "Kontak tidak ditemukan untuk check-in.", nomors: notFound },
+          { status: 404 }
+        );
+      }
+
+      if (alreadyPresent.length > 0) {
+        return NextResponse.json(
+          { error: "Check-in berulang tidak diizinkan.", nomors: alreadyPresent },
+          { status: 409 }
+        );
+      }
+    }
 
     // 3. Pastikan setiap kontak memiliki token (gunakan yang lama jika ada, atau generate baru jika benar-benar baru)
     const finalContacts = normalizedContacts.map(c => {
@@ -150,16 +218,23 @@ export async function POST(request: Request) {
       };
     });
 
-    const dedupedByNomor = Array.from(
-      new Map(finalContacts.map((contact) => [contact.nomor, contact])).values()
+    // Jangan ikut upsert lagi untuk request yang merupakan check-in (agar tidak menimpa field lain secara tidak sengaja)
+    const upsertCandidates = finalContacts.filter(
+      (c: any) => !(c.is_present === true && c.present_at != null)
     );
 
-    const { error: upsertError } = await supabase
-      .from("contacts")
-      .upsert(dedupedByNomor, { onConflict: "user_id,nomor" });
+    const dedupedByNomor = Array.from(
+      new Map(upsertCandidates.map((contact) => [contact.nomor, contact])).values()
+    );
 
-    if (upsertError) {
-      throw upsertError;
+    if (dedupedByNomor.length > 0) {
+      const { error: upsertError } = await supabase
+        .from("contacts")
+        .upsert(dedupedByNomor, { onConflict: "user_id,nomor" });
+
+      if (upsertError) {
+        throw upsertError;
+      }
     }
 
     const { data, error: selectError } = await supabase
@@ -173,7 +248,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       contacts: data ?? [],
-      savedCount: dedupedByNomor.length 
+      savedCount: (dedupedByNomor.length + checkinTargets.length)
     });
   } catch (error: any) {
     console.error("DEBUG API ERROR POST:", error);
