@@ -114,12 +114,12 @@ const initialLocal = (key: string, fallback: string = "") => {
 export default function Home() {
   const [bulkInput, setBulkInput] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [activeView, setActiveView] = useState<"send" | "guestbook">("send");
+  const [activeView, setActiveView] = useState<"send" | "guestbook" | "scan">("send");
   const [guestbookQuery, setGuestbookQuery] = useState("");
   const [sentNomors, setSentNomors] = useState<string[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
+
   const [scannedContact, setScannedContact] = useState<Contact | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [link, setLink] = useState(() => initialLocal("wa_sender_link", "https://nimantra.vercel.app/?to={nama}&token={id}"));
@@ -723,8 +723,8 @@ export default function Home() {
             Buku Tamu
           </button>
           <button
-            className={styles.sidebarItem}
-            onClick={() => setIsScanning(true)}
+            className={`${styles.sidebarItem} ${activeView === "scan" ? styles.sidebarItemActive : ""}`}
+            onClick={() => setActiveView("scan")}
           >
             <span className={styles.sidebarIcon}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg>
@@ -904,7 +904,7 @@ export default function Home() {
                 </div>
 
               </>
-            ) : (
+            ) : activeView === "guestbook" ? (
               <>
                 <h2 className={styles.pageTitle}>Buku Tamu</h2>
                 <p className={styles.pageSubtitle}>Kelola daftar tamu, status undangan, dan pencarian tamu.</p>
@@ -988,6 +988,12 @@ export default function Home() {
                   </div>
                 </div>
               </>
+            ) : (
+              <ScannerView
+                onScanSuccess={handleScanSuccess}
+                scannedContact={scannedContact}
+                onReset={() => setScannedContact(null)}
+              />
             )}
           </div>
         </main>
@@ -1007,7 +1013,7 @@ export default function Home() {
           </span>
           Buku Tamu
         </button>
-        <button className={styles.bottomNavItem} onClick={() => setIsScanning(true)}>
+        <button className={`${styles.bottomNavItem} ${activeView === "scan" ? styles.bottomNavItemActive : ""}`} onClick={() => setActiveView("scan")}>
           <span className={styles.bottomNavIcon}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg>
           </span>
@@ -1185,42 +1191,18 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      {isScanning && (
-        <ScannerOverlay
-          onScanSuccess={handleScanSuccess}
-          onClose={() => { setIsScanning(false); setScannedContact(null); }}
-          scannedContact={scannedContact}
-          onReset={() => setScannedContact(null)}
-        />
-      )}
-
-      {feedback && (
-        <div className={styles.toastSuccess}>
-          <div className={styles.toastIcon}>✓</div>
-          <div>{feedback}</div>
-        </div>
-      )}
-      {errorMessage && (
-        <div className={styles.toastError}>
-          <div className={styles.toastIcon}>!</div>
-          <div>{errorMessage}</div>
-        </div>
-      )}
     </div>
   );
 
 }
 
-// Komponen Scanner Internal
-function ScannerOverlay({
+// Komponen Scanner Internal (Didedikasikan sebagai View)
+function ScannerView({
   onScanSuccess,
-  onClose,
   scannedContact,
   onReset
 }: {
   onScanSuccess: (text: string) => void;
-  onClose: () => void;
   scannedContact: Contact | null;
   onReset: () => void;
 }) {
@@ -1237,7 +1219,15 @@ function ScannerOverlay({
 
       const html5QrCode = new Html5Qrcode("reader");
       scannerRef.current = html5QrCode;
-      const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+      const config = { 
+        fps: 20, 
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const size = Math.floor(minEdge * 0.65);
+          return { width: size, height: size };
+        },
+        aspectRatio: 1.0
+      };
 
       html5QrCode.start(
         { facingMode: "environment" },
@@ -1275,20 +1265,15 @@ function ScannerOverlay({
   }, [scannedContact, onReset]);
 
   return (
-    <div className={styles.scannerOverlay}>
-      <div className={styles.scannerCard}>
-        <div className={styles.modalHeader}>
-          <h3 className={styles.modalTitle}>
-            {scannedContact ? "Konfirmasi Kehadiran" : "Scan QR Code Tamu"}
-          </h3>
-          <button className={styles.actionBtn} onClick={onClose}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
+    <div className={styles.scannerView}>
+      <h2 className={styles.pageTitle}>
+        {scannedContact ? "Konfirmasi Kehadiran" : "Scan QR Code Tamu"}
+      </h2>
+      <p className={styles.pageSubtitle}>
+        {scannedContact ? "Tamu berhasil dipindai." : "Arahkan kamera ke QR Code tamu untuk check-in."}
+      </p>
 
+      <div className={styles.scannerContainer}>
         {scannedContact ? (
           <div className={styles.scanResultCard}>
             <div className={styles.resultCheck}>✓</div>
@@ -1309,12 +1294,12 @@ function ScannerOverlay({
             </button>
           </div>
         ) : (
-          <>
+          <div className={styles.readerWrapper}>
             <div id="reader" className={styles.reader}></div>
-            <div className={styles.modalFooter}>
-              <p className={styles.qrHint}>Arahkan kamera ke QR Code tamu</p>
+            <div className={styles.scannerOverlayFrame}>
+              <div className={styles.scannerFrameCorners}></div>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

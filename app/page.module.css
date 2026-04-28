@@ -17,7 +17,7 @@
 .loginCard {
   background: white;
   border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
   padding: 32px 28px 24px;
   width: 100%;
   max-width: 400px;
@@ -133,7 +133,7 @@
   box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.1);
 }
 
-.loginInput:focus ~ .loginInputIcon,
+.loginInput:focus~.loginInputIcon,
 .loginInputWrap:has(.loginInput:focus) .loginInputIcon {
   color: var(--accent-dark);
 }
@@ -1524,25 +1524,91 @@
   padding: var(--space-2);
 }
 
-.scannerOverlay {
-  position: fixed;
+.scannerView {
+  animation: fadeIn 0.4s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.scannerContainer {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 287px;
+  position: relative;
+}
+
+.readerWrapper {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+.scannerOverlayFrame {
+  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: black;
+  pointer-events: none;
   display: flex;
-  flex-direction: column;
-  z-index: 3000;
-  animation: fadeIn 0.3s ease;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
 }
+
+.scannerFrameCorners {
+  width: 250px;
+  height: 250px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  position: relative;
+  border-radius: 20px;
+}
+
+.scannerFrameCorners::before,
+.scannerFrameCorners::after {
+  content: "";
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-color: var(--accent);
+  border-style: solid;
+  border-width: 0;
+}
+
+/* Top Left */
+.scannerFrameCorners::before {
+  top: -2px;
+  left: -2px;
+  border-top-width: 4px;
+  border-left-width: 4px;
+  border-top-left-radius: 16px;
+}
+
+/* Bottom Right */
+.scannerFrameCorners::after {
+  bottom: -2px;
+  right: -2px;
+  border-bottom-width: 4px;
+  border-right-width: 4px;
+  border-bottom-right-radius: 16px;
+}
+
 
 .modalContent {
   background: var(--surface);
   width: 100%;
   max-width: 440px;
   border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0,0,0,0.04);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.04);
   overflow: hidden;
   animation: slideUp 0.3s ease;
   max-height: 90vh;
@@ -1708,7 +1774,7 @@
 }
 
 .scannerCard {
-  background: var(--surface);
+  background: #000;
   width: 100%;
   height: 100%;
   display: flex;
@@ -1724,9 +1790,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  overflow: hidden;
 }
 
 .reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
   transform: scaleX(-1) !important;
   -webkit-transform: scaleX(-1) !important;
 }
