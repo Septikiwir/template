@@ -1181,12 +1181,13 @@ function ScannerOverlay({
     };
   }, [scannedContact]);
 
-  // Auto-dismiss after 1 second when scan result is shown
+  // Auto-dismiss after scan: 1s for regular, 3s for VIP
   useEffect(() => {
     if (!scannedContact) return;
+    const delay = scannedContact.is_vip ? 3000 : 1000;
     const timer = setTimeout(() => {
       onReset();
-    }, 1000);
+    }, delay);
     return () => clearTimeout(timer);
   }, [scannedContact, onReset]);
 
