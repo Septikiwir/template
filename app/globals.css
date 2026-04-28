@@ -7,6 +7,7 @@
 }
 
 :root {
+  /* ─── Colors (preserved) ─── */
   --bg: #F5F3EE;
   --surface: #FDFCF9;
   --surface2: #F0EDE7;
@@ -20,12 +21,26 @@
   --accent-light: #DCF5E7;
   --danger: #E24B4A;
   --danger-light: #FCEBEB;
+
+  /* ─── Radii (preserved) ─── */
   --radius-sm: 10px;
   --radius-md: 16px;
   --radius-lg: 24px;
   --radius-xl: 32px;
+
+  /* ─── Shadows (preserved) ─── */
   --shadow: 0 2px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
+
+  /* ─── 8pt Spacing System ─── */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --space-7: 56px;
+  --space-8: 64px;
 }
 
 *, *::before, *::after {
@@ -34,17 +49,28 @@
   padding: 0;
 }
 
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font-body), sans-serif;
   background: var(--bg);
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem 1rem;
   position: relative;
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Login-only centering */
+body.login-body {
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3) var(--space-2);
 }
 
 /* Ambient glow effects */

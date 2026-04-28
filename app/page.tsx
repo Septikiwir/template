@@ -110,6 +110,8 @@ export default function Home() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Contact | 'no'; direction: 'asc' | 'desc' }>({ key: 'is_present', direction: 'desc' });
+  const [importOpen, setImportOpen] = useState(true);
+  const [configOpen, setConfigOpen] = useState(true);
 
   // Helper to map username to internal email for Supabase Auth
   const getInternalEmail = (user: string) => `${user.trim().toLowerCase()}@wedding.com`;
@@ -132,7 +134,7 @@ export default function Home() {
   const handleUpdateContact = async (updated: Contact) => {
     if (!session) return;
     try {
-      setContacts(prev => prev.map(c => 
+      setContacts(prev => prev.map(c =>
         c.id === updated.id ? updated : c
       ));
 
@@ -142,15 +144,15 @@ export default function Home() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ 
-          contacts: [{ 
+        body: JSON.stringify({
+          contacts: [{
             id: updated.id,
             nama: updated.nama,
             nomor: updated.nomor,
             is_vip: updated.is_vip,
             is_sent: updated.is_sent,
             is_present: updated.is_present
-          }] 
+          }]
         }),
       });
 
@@ -158,7 +160,7 @@ export default function Home() {
         const errData = await response.json();
         throw new Error(errData.error || "Gagal memperbarui database.");
       }
-      
+
       setEditingContact(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gagal menyimpan.";
@@ -170,10 +172,10 @@ export default function Home() {
   const handleScanSuccess = async (decodedText: string) => {
     // Bersihkan hasil scan dari spasi atau karakter aneh
     const cleanToken = decodedText.trim();
-    
+
     // Cari tamu berdasarkan token
     const contact = contacts.find(c => c.token === cleanToken);
-    
+
     if (contact) {
       if (contact.is_present) {
         setFeedback(`${contact.nama} sudah hadir sebelumnya.`);
@@ -181,10 +183,10 @@ export default function Home() {
       } else {
         const now = new Date().toISOString();
         const updated = { ...contact, is_present: true, present_at: now };
-        
+
         setFeedback(`BERHASIL: ${contact.nama} hadir!`);
         setScannedContact(updated);
-        
+
         try {
           await handleUpdateContact(updated);
         } catch (err) {
@@ -246,11 +248,11 @@ export default function Home() {
       .channel(`realtime_contacts_${session.user.id}`)
       .on(
         "postgres_changes",
-        { 
-          event: "*", 
-          schema: "public", 
+        {
+          event: "*",
+          schema: "public",
           table: "contacts",
-          filter: `user_id=eq.${session.user.id}` 
+          filter: `user_id=eq.${session.user.id}`
         },
         () => {
           // Setiap ada perubahan (INSERT/UPDATE/DELETE), ambil data terbaru
@@ -417,8 +419,8 @@ export default function Home() {
 
     const waUrl = `https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, link, contact.token))}`;
     window.open(waUrl, "_blank");
-    
-    setContacts(prev => prev.map(c => 
+
+    setContacts(prev => prev.map(c =>
       c.id === contact.id ? { ...c, is_sent: true } : c
     ));
     setSentNomors((prev) => [...new Set([...prev, contact.nomor])]);
@@ -430,13 +432,13 @@ export default function Home() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ 
-          contacts: [{ 
+        body: JSON.stringify({
+          contacts: [{
             id: contact.id,
             nama: contact.nama,
             nomor: contact.nomor,
-            is_sent: true 
-          }] 
+            is_sent: true
+          }]
         }),
       });
     }
@@ -454,7 +456,7 @@ export default function Home() {
 
   const filteredGuestbook = useMemo(() => {
     const keyword = guestbookQuery.trim().toLowerCase();
-    
+
     // Tahap 1: Saring tamu yang sudah dikirim atau sudah hadir
     let processed = contacts.filter(c => c.is_sent || c.is_present);
 
@@ -470,14 +472,14 @@ export default function Home() {
     // Tahap 3: Pengurutan (Sorting)
     return [...processed].sort((a, b) => {
       if (sortConfig.key === 'no') return 0; // Biarkan nomor urut tetap
-      
+
       let valA = a[sortConfig.key as keyof Contact];
       let valB = b[sortConfig.key as keyof Contact];
 
       // Penanganan khusus untuk string
       if (typeof valA === 'string' && typeof valB === 'string') {
-        return sortConfig.direction === 'asc' 
-          ? valA.localeCompare(valB) 
+        return sortConfig.direction === 'asc'
+          ? valA.localeCompare(valB)
           : valB.localeCompare(valA);
       }
 
@@ -506,7 +508,7 @@ export default function Home() {
 
   if (!session) {
     return (
-      <>
+      <div className={styles.loginWrapper}>
         <header className={styles.header}>
           <div className={styles.badge}>
             <span className={styles.badgeDot} />
@@ -598,421 +600,407 @@ export default function Home() {
         </div>
 
         <p className={styles.footerNote}>Halaman utama hanya bisa diakses setelah login berhasil.</p>
-      </>
+      </div>
     );
   }
 
+  // This is the new dashboard return block
+  const displayName = username || session.user.email?.split("@")[0] || "User";
+  const initial = displayName.charAt(0).toUpperCase();
+
   return (
-    <>
-      <header className={styles.header}>
-        <div className={styles.badge}>
-          <span className={styles.badgeDot} />
-          WhatsApp Message Sender
+    <div className={styles.dashboardShell}>
+      {/* ─── Top Bar ─── */}
+      <div className={styles.topBar}>
+        <div className={styles.topBarBrand}>
+          <div className={styles.topBarLogo}>W</div>
+          <span className={styles.topBarTitle}>Dashboard</span>
         </div>
-        <h1 className={styles.title}>
-          Kirim Pesan
-          <br />
-          <span className={styles.titleAccent}>Massal.</span>
-        </h1>
-        <p className={styles.subtitle}>
-          Halo, <strong>{username || session.user.email?.split("@")[0]}</strong>. Kelola kontak Anda di sini.
-        </p>
-        <div className={styles.modeToggle}>
+        <div className={styles.topBarUser}>
+          <div className={styles.topBarAvatar}>{initial}</div>
+          <span className={styles.topBarName}>{displayName}</span>
+          <button className={styles.topBarLogout} onClick={handleLogout}>Logout</button>
+        </div>
+      </div>
+
+      {/* ─── Body (sidebar + main) ─── */}
+      <div className={styles.dashboardBody}>
+        {/* Sidebar (desktop only) */}
+        <nav className={styles.sidebar}>
           <button
-            className={`${styles.modeBtn} ${activeView === "send" ? styles.modeBtnActive : ""}`}
+            className={`${styles.sidebarItem} ${activeView === "send" ? styles.sidebarItemActive : ""}`}
             onClick={() => setActiveView("send")}
           >
-            Send
+            <span className={styles.sidebarIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
+            </span>
+            Kirim Pesan
           </button>
           <button
-            className={`${styles.modeBtn} ${activeView === "guestbook" ? styles.modeBtnActive : ""}`}
+            className={`${styles.sidebarItem} ${activeView === "guestbook" ? styles.sidebarItemActive : ""}`}
             onClick={() => setActiveView("guestbook")}
           >
+            <span className={styles.sidebarIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            </span>
             Buku Tamu
           </button>
-        </div>
-        <div className={styles.topActions}>
-          <button className={styles.ghostBtn} onClick={handleLogout}>
-            Logout
-          </button>
-        </div>
-      </header>
+        </nav>
 
-      {activeView === "send" ? (
-        <div className={styles.card}>
-          <div className={styles.field}>
-            <label className={styles.label}>
-              Input Data Massal <span className={styles.req}>*</span>
-            </label>
-            <textarea
-              className={styles.textarea}
-              placeholder={"Budi Santoso, 08123456789\nSiti Aminah, +6281234567890"}
-              style={{ minHeight: "150px", paddingLeft: "14px" }}
-              value={bulkInput}
-              onChange={(e) => setBulkInput(e.target.value)}
-            />
-            <div className={styles.hint}>Format: Nama, Nomor HP (satu baris per kontak).</div>
-            <button
-              className={styles.btn}
-              style={{ marginTop: "12px", padding: "10px" }}
-              onClick={handleSaveContacts}
-              disabled={isSaving}
-            >
-              {isSaving ? "Menyimpan..." : "Simpan Kontak"}
-            </button>
-          </div>
+        {/* Main Content */}
+        <main className={styles.mainContent}>
+          <div className={styles.contentMaxWidth}>
 
-          <div className={styles.field}>
-            <label htmlFor="link" className={styles.label}>
-              Link / URL <span className={styles.req}>*</span>
-            </label>
-            <div className={styles.inputWrap}>
-              <input
-                id="link"
-                type="text"
-                className={styles.input}
-                placeholder="Contoh: https://link.com"
-                autoComplete="off"
-                value={link}
-                onChange={(e) => setLink(e.target.value)}
-              />
-              <span className={styles.inputIcon}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-                </svg>
-              </span>
-            </div>
-            {!link.trim() && <div className={styles.hintError}>Link tidak boleh kosong.</div>}
-          </div>
+            {activeView === "send" ? (
+              <>
+                <h2 className={styles.pageTitle}>Kirim Pesan Massal</h2>
+                <p className={styles.pageSubtitle}>Kelola kontak dan kirim undangan WhatsApp secara massal.</p>
 
-          <div className={styles.field}>
-            <label htmlFor="pesan" className={styles.label}>
-              Template Pesan <span className={styles.req}>*</span>
-            </label>
-            <div className={styles.inputWrap}>
-              <textarea
-                id="pesan"
-                className={styles.textarea}
-                placeholder={"Halo {nama}, ini link undangan Anda: {link}"}
-                value={pesan}
-                onChange={(e) => setPesan(e.target.value)}
-              />
-              <span className={`${styles.inputIcon} ${styles.inputIconTextarea}`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                </svg>
-              </span>
-            </div>
-            <div className={styles.hint}>
-              Wajib gunakan <strong>{"{nama}"}</strong> dan <strong>{"{link}"}</strong>.
-            </div>
-            {!pesan.trim() && <div className={styles.hintError}>Template pesan tidak boleh kosong.</div>}
-            {pesanMissingNama && (
-              <div className={styles.hintError}>
-                Template harus mengandung <strong>{"{nama}"}</strong>
-              </div>
-            )}
-            {pesanMissingLink && (
-              <div className={styles.hintError}>
-                Template harus mengandung <strong>{"{link}"}</strong>
-              </div>
-            )}
-          </div>
-
-          {previewMessage && (
-            <div className={styles.previewSection}>
-              <div className={styles.previewLabel}>Pratinjau Pesan</div>
-              <div className={styles.previewBox}>{previewMessage}</div>
-            </div>
-          )}
-
-          {(feedback || errorMessage) && (
-            <div className={styles.field}>
-              {feedback && <div className={styles.hint}>{feedback}</div>}
-              {errorMessage && <div className={styles.hintError}>{errorMessage}</div>}
-            </div>
-          )}
-
-          <div style={{ marginTop: "2rem" }}>
-            <div className={styles.bulkHeader}>
-              <span className={styles.bulkTitle}>Daftar Kontak ({contacts.length})</span>
-              <div className={styles.rowActions}>
-                <span className={styles.bulkStats}>
-                  {sentCount} / {contacts.length} Terkirim
-                </span>
-              </div>
-            </div>
-
-            <div className={styles.bulkList}>
-              {contacts.length === 0 && !isFetching && (
-                <div className={styles.contactRow}>
-                  <div className={styles.contactInfo}>
-                    <span className={styles.contactName}>Belum ada kontak dimuat</span>
-                    <span className={styles.contactNumber}>Tambahkan kontak di atas untuk mulai mengirim.</span>
+                {/* Stats Row */}
+                <div className={styles.statsRow}>
+                  <div className={styles.statItem}>
+                    <div className={styles.statNumber}>{contacts.length}</div>
+                    <div className={styles.statLabel2}>Kontak</div>
+                  </div>
+                  <div className={`${styles.statItem} ${styles.statAccent}`}>
+                    <div className={styles.statNumber}>{sentCount}</div>
+                    <div className={styles.statLabel2}>Terkirim</div>
+                  </div>
+                  <div className={`${styles.statItem} ${contacts.length - sentCount > 0 ? styles.statDanger : ""}`}>
+                    <div className={styles.statNumber}>{contacts.length - sentCount}</div>
+                    <div className={styles.statLabel2}>Belum</div>
                   </div>
                 </div>
-              )}
 
-              {contacts
-                .sort((a, b) => {
-                  const aSent = sentNomors.includes(a.nomor);
-                  const bSent = sentNomors.includes(b.nomor);
-                  return aSent === bSent ? 0 : aSent ? 1 : -1;
-                })
-                .map((contact) => {
-                  const isSent = sentNomors.includes(contact.nomor);
-                  return (
-                    <div key={contact.id} className={`${styles.contactRow} ${isSent ? styles.contactRowSent : ""}`}>
-                      <div className={styles.contactInfo}>
-                        <span className={styles.contactName}>{contact.nama}</span>
-                        <span className={styles.contactNumber}>{contact.nomor}</span>
-                      </div>
-                      <div className={styles.rowActions}>
-                        <button
-                          className={isSent ? styles.sentBtn : styles.miniBtn}
-                          onClick={() => handleSendSingleContact(contact)}
-                          disabled={isSent}
-                        >
-                          {isSent ? "Terkirim" : "Kirim"}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-              {isFetching && contacts.length === 0 && (
-                <div className={styles.contactRow}>
-                  <div className={styles.contactInfo}>
-                    <span className={styles.contactName}>Memuat data...</span>
+                {/* Panel: Import Contacts */}
+                <div className={styles.panel}>
+                  <div className={styles.panelHeader} onClick={() => setImportOpen(!importOpen)}>
+                    <span className={styles.panelTitle}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                      Import Kontak
+                    </span>
+                    <span className={`${styles.panelToggle} ${importOpen ? styles.panelToggleOpen : ""}`}>▾</span>
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className={styles.card}>
-          <div className={styles.egmsHeader}>
-            <div className={styles.egmsTitleGroup}>
-              <h3 className={styles.egmsTitle}>Event Guest Management System</h3>
-              <p className={styles.egmsSubtitle}>
-                Kelola daftar tamu, status undangan, dan pencarian tamu secara cepat.
-              </p>
-            </div>
-          </div>
-
-          <div className={styles.egmsStatsGrid}>
-            <div className={styles.statCard}>
-              <span className={styles.statLabel}>Tamu Terdata</span>
-              <span className={styles.statValue}>{filteredGuestbook.length}</span>
-            </div>
-            <div className={styles.statCard}>
-              <span className={styles.statLabel}>Terkirim</span>
-              <span className={styles.statValue}>{filteredGuestbook.filter(c => c.is_sent && !c.is_present).length}</span>
-            </div>
-            <div className={styles.statCard}>
-              <span className={styles.statLabel}>Hadir</span>
-              <span className={styles.statValue}>{filteredGuestbook.filter(c => c.is_present).length}</span>
-            </div>
-          </div>
-
-          <div className={styles.egmsControls}>
-            <input
-              id="guest-search"
-              type="text"
-              className={styles.searchField}
-              placeholder="Cari nama atau nomor tamu..."
-              value={guestbookQuery}
-              onChange={(e) => setGuestbookQuery(e.target.value)}
-            />
-            <button className={styles.searchBtn} onClick={handleLoadContacts} disabled={isFetching}>
-              {isFetching ? "..." : "Search"}
-            </button>
-          </div>
-
-          <div className={styles.scanSection}>
-            <button className={styles.btn} onClick={() => setIsScanning(true)} style={{ width: "100%", justifyContent: "center" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18, marginRight: 8 }}>
-                <path d="M3 7V5a2 2 0 0 1 2-2h2" />
-                <path d="M17 3h2a2 2 0 0 1 2 2v2" />
-                <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
-                <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
-                <rect x="7" y="7" width="10" height="10" rx="1" />
-              </svg>
-              Scan QR Tamu
-            </button>
-          </div>
-
-          <div className={styles.egmsTable}>
-            <div className={styles.egmsTableHead}>
-              <span className={styles.egmsHeadCell} onClick={() => toggleSort('no')} style={{ cursor: 'pointer' }}>
-                No {getSortIcon('no')}
-              </span>
-              <span className={styles.egmsHeadCell} onClick={() => toggleSort('nama')} style={{ cursor: 'pointer' }}>
-                Nama Tamu {getSortIcon('nama')}
-              </span>
-              <span className={styles.egmsHeadCell} onClick={() => toggleSort('is_vip')} style={{ cursor: 'pointer' }}>
-                Jenis {getSortIcon('is_vip')}
-              </span>
-              <span className={styles.egmsHeadCell} onClick={() => toggleSort('is_present')} style={{ cursor: 'pointer' }}>
-                Status {getSortIcon('is_present')}
-              </span>
-              <span className={styles.egmsHeadCell}>Action</span>
-            </div>
-
-            {filteredGuestbook.length === 0 && !isFetching && (
-              <div className={styles.egmsRowEmpty}>Belum ada tamu. Klik Search atau simpan data dari tab Send.</div>
-            )}
-
-            {filteredGuestbook.map((contact, index) => {
-              const isSent = contact.is_sent || sentNomors.includes(contact.nomor);
-              return (
-                <div key={contact.id} className={styles.egmsRow}>
-                  <span className={styles.egmsCell}>{index + 1}</span>
-                  <div className={styles.egmsCellStrong}>
-                    {contact.nama}
-                  </div>
-                  <div className={styles.egmsCell}>
-                    {contact.is_vip && (
-                      <span className={styles.vipBadge}>VIP</span>
-                    )}
-                  </div>
-                  <div className={styles.egmsCell}>
-                    {contact.is_present ? (
-                      <span className={styles.statusHadir}>Hadir</span>
-                    ) : isSent ? (
-                      <span className={styles.statusSent}>Terkirim</span>
-                    ) : (
-                      <span className={styles.statusPending}>Belum</span>
-                    )}
-                  </div>
-                  <div className={styles.egmsCell}>
-                    <button 
-                      className={styles.actionBtn}
-                      onClick={() => setEditingContact(contact)}
-                      title="Edit Tamu"
+                  <div className={importOpen ? styles.panelBody : styles.panelBodyHidden}>
+                    <textarea
+                      className={styles.textarea}
+                      placeholder={"Budi Santoso, 08123456789\nSiti Aminah, +6281234567890"}
+                      style={{ minHeight: "120px" }}
+                      value={bulkInput}
+                      onChange={(e) => setBulkInput(e.target.value)}
+                    />
+                    <div className={styles.hint}>Format: Nama, Nomor HP (satu baris per kontak).</div>
+                    <button
+                      className={styles.btn}
+                      style={{ marginTop: "12px" }}
+                      onClick={handleSaveContacts}
+                      disabled={isSaving}
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
+                      {isSaving ? "Menyimpan..." : "Simpan Kontak"}
                     </button>
                   </div>
                 </div>
-              );
-            })}
 
-            {isFetching && filteredGuestbook.length === 0 && (
-              <div className={styles.egmsRowEmpty}>Memuat data buku tamu...</div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <p className={styles.footerNote}>
-        Kontak tersimpan, lalu pesan dikirim lewat WhatsApp dari browser.
-      </p>
-
-      {/* Modal Edit Tamu */}
-      {editingContact && (
-        <div className={styles.modalOverlay} onClick={() => setEditingContact(null)}>
-          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h3 className={styles.modalTitle}>Edit Data Tamu</h3>
-              <button className={styles.actionBtn} onClick={() => setEditingContact(null)}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className={styles.modalBody}>
-              <div className={styles.field}>
-                <label className={styles.label}>Nama Tamu</label>
-                <div className={styles.modalInputRow}>
-                  <input 
-                    type="text" 
-                    className={styles.input} 
-                    value={editingContact.nama}
-                    onChange={(e) => setEditingContact({ ...editingContact, nama: e.target.value })}
-                    placeholder="Masukkan nama tamu"
-                  />
-                  <div className={styles.vipToggleMini}>
-                    <span className={styles.vipLabelSmall}>VIP</span>
-                    <label className={styles.switch}>
-                      <input 
-                        type="checkbox" 
-                        checked={editingContact.is_vip}
-                        onChange={(e) => setEditingContact({ ...editingContact, is_vip: e.target.checked })}
-                      />
-                      <span className={styles.slider}></span>
-                    </label>
+                {/* Panel: Message Config */}
+                <div className={styles.panel}>
+                  <div className={styles.panelHeader} onClick={() => setConfigOpen(!configOpen)}>
+                    <span className={styles.panelTitle}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                      Konfigurasi Pesan
+                    </span>
+                    <span className={`${styles.panelToggle} ${configOpen ? styles.panelToggleOpen : ""}`}>▾</span>
                   </div>
-                </div>
-              </div>
-
-              <div className={styles.compactInfoCard}>
-                <div className={styles.infoCol}>
-                  <label className={styles.labelSmall}>Kehadiran</label>
-                  <div className={styles.presenceControl}>
-                    {editingContact.is_present ? (
-                      <div className={styles.presentStatusInfo}>
-                        <div className={styles.statusCheck}>✓</div>
-                        <div>
-                          <span className={styles.timeLabel}>HADIR</span>
-                          <span className={styles.timeValue}>
-                            {editingContact.present_at 
-                              ? new Date(editingContact.present_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) 
-                              : "-"}
-                          </span>
-                        </div>
-                        <button className={styles.cancelLink} onClick={() => setEditingContact({...editingContact, is_present: false, present_at: null})}>
-                          Batal
-                        </button>
+                  <div className={configOpen ? styles.panelBody : styles.panelBodyHidden}>
+                    <div className={styles.field}>
+                      <label htmlFor="link" className={styles.label}>Link / URL <span className={styles.req}>*</span></label>
+                      <div className={styles.inputWrap}>
+                        <input id="link" type="text" className={styles.input} placeholder="Contoh: https://link.com" autoComplete="off" value={link} onChange={(e) => setLink(e.target.value)} />
+                        <span className={styles.inputIcon}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg>
+                        </span>
                       </div>
-                    ) : (
-                      <button className={styles.checkInBtn} onClick={() => setEditingContact({...editingContact, is_present: true, present_at: new Date().toISOString()})}>
-                        Check-in
-                      </button>
+                      {!link.trim() && <div className={styles.hintError}>Link tidak boleh kosong.</div>}
+                    </div>
+
+                    <div className={styles.field}>
+                      <label htmlFor="pesan" className={styles.label}>Template Pesan <span className={styles.req}>*</span></label>
+                      <div className={styles.inputWrap}>
+                        <textarea id="pesan" className={styles.textarea} placeholder={"Halo {nama}, ini link undangan Anda: {link}"} value={pesan} onChange={(e) => setPesan(e.target.value)} />
+                        <span className={`${styles.inputIcon} ${styles.inputIconTextarea}`}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
+                        </span>
+                      </div>
+                      <div className={styles.hint}>Wajib gunakan <strong>{"{nama}"}</strong> dan <strong>{"{link}"}</strong>.</div>
+                      {!pesan.trim() && <div className={styles.hintError}>Template pesan tidak boleh kosong.</div>}
+                      {pesanMissingNama && <div className={styles.hintError}>Template harus mengandung <strong>{"{nama}"}</strong></div>}
+                      {pesanMissingLink && <div className={styles.hintError}>Template harus mengandung <strong>{"{link}"}</strong></div>}
+                    </div>
+
+                    {previewMessage && (
+                      <div className={styles.previewSection}>
+                        <div className={styles.previewLabel}>Pratinjau Pesan</div>
+                        <div className={styles.previewBox}>{previewMessage}</div>
+                      </div>
                     )}
                   </div>
                 </div>
 
-                <div className={styles.qrCol}>
-                  <label className={styles.labelSmall}>QR Code</label>
-                  <div className={styles.qrBoxCompact}>
-                    <QRCodeSVG value={editingContact.token || "PENDING"} size={70} />
+                {/* Panel: Contact List */}
+                <div className={styles.panel}>
+                  <div className={styles.panelHeader}>
+                    <span className={styles.panelTitle}>Daftar Kontak ({contacts.length})</span>
+                    <span className={styles.bulkStats}>{sentCount} / {contacts.length} Terkirim</span>
                   </div>
+                  <div className={styles.panelBody} style={{ paddingTop: 0 }}>
+                    <div className={styles.bulkList}>
+                      {contacts.length === 0 && !isFetching && (
+                        <div className={styles.contactRow}>
+                          <div className={styles.contactInfo}>
+                            <span className={styles.contactName}>Belum ada kontak dimuat</span>
+                            <span className={styles.contactNumber}>Tambahkan kontak di atas untuk mulai mengirim.</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {contacts
+                        .sort((a, b) => {
+                          const aSent = sentNomors.includes(a.nomor);
+                          const bSent = sentNomors.includes(b.nomor);
+                          return aSent === bSent ? 0 : aSent ? 1 : -1;
+                        })
+                        .map((contact) => {
+                          const isSent = sentNomors.includes(contact.nomor);
+                          return (
+                            <div key={contact.id} className={`${styles.contactRow} ${isSent ? styles.contactRowSent : ""}`}>
+                              <div className={styles.contactInfo}>
+                                <span className={styles.contactName}>{contact.nama}</span>
+                                <span className={styles.contactNumber}>{contact.nomor}</span>
+                              </div>
+                              <div className={styles.rowActions}>
+                                <button
+                                  className={isSent ? styles.sentBtn : styles.miniBtn}
+                                  onClick={() => handleSendSingleContact(contact)}
+                                  disabled={isSent}
+                                >
+                                  {isSent ? "Terkirim" : "Kirim"}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                      {isFetching && contacts.length === 0 && (
+                        <div className={styles.contactRow}>
+                          <div className={styles.contactInfo}>
+                            <span className={styles.contactName}>Memuat data...</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+              </>
+            ) : (
+              <>
+                <h2 className={styles.pageTitle}>Buku Tamu</h2>
+                <p className={styles.pageSubtitle}>Kelola daftar tamu, status undangan, dan pencarian tamu.</p>
+
+                {/* Stats Row */}
+                <div className={styles.statsRow}>
+                  <div className={styles.statItem}>
+                    <div className={styles.statNumber}>{filteredGuestbook.length}</div>
+                    <div className={styles.statLabel2}>Tamu</div>
+                  </div>
+                  <div className={`${styles.statItem} ${styles.statAccent}`}>
+                    <div className={styles.statNumber}>{filteredGuestbook.filter(c => c.is_sent && !c.is_present).length}</div>
+                    <div className={styles.statLabel2}>Pending</div>
+                  </div>
+                  <div className={`${styles.statItem} ${styles.statAccent}`}>
+                    <div className={styles.statNumber}>{filteredGuestbook.filter(c => c.is_present).length}</div>
+                    <div className={styles.statLabel2}>Hadir</div>
+                  </div>
+                </div>
+
+                {/* Search + Scan */}
+                <div className={styles.panel}>
+                  <div className={styles.panelBody} style={{ paddingTop: "var(--space-2)" }}>
+                    <div className={styles.egmsControls}>
+                      <input
+                        id="guest-search"
+                        type="text"
+                        className={styles.searchField}
+                        placeholder="Cari nama atau nomor tamu..."
+                        value={guestbookQuery}
+                        onChange={(e) => setGuestbookQuery(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ marginTop: "var(--space-1)" }}>
+                      <button className={styles.btn} onClick={() => setIsScanning(true)} style={{ width: "100%", justifyContent: "center" }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18, marginRight: 8 }}>
+                          <path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><rect x="7" y="7" width="10" height="10" rx="1" />
+                        </svg>
+                        Scan QR Tamu
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Guest Table */}
+                <div className={styles.panel}>
+                  <div className={styles.egmsTable}>
+                    <div className={styles.egmsTableHead}>
+                      <span className={styles.egmsHeadCell} onClick={() => toggleSort('no')} style={{ cursor: 'pointer' }}>No {getSortIcon('no')}</span>
+                      <span className={styles.egmsHeadCell} onClick={() => toggleSort('nama')} style={{ cursor: 'pointer' }}>Nama Tamu {getSortIcon('nama')}</span>
+                      <span className={styles.egmsHeadCell} onClick={() => toggleSort('is_vip')} style={{ cursor: 'pointer' }}>Jenis {getSortIcon('is_vip')}</span>
+                      <span className={styles.egmsHeadCell} onClick={() => toggleSort('is_present')} style={{ cursor: 'pointer' }}>Status {getSortIcon('is_present')}</span>
+                      <span className={styles.egmsHeadCell}>Action</span>
+                    </div>
+
+                    {filteredGuestbook.length === 0 && !isFetching && (
+                      <div className={styles.egmsRowEmpty}>Belum ada tamu. Klik Search atau simpan data dari tab Send.</div>
+                    )}
+
+                    {filteredGuestbook.map((contact, index) => {
+                      const isSent = contact.is_sent || sentNomors.includes(contact.nomor);
+                      return (
+                        <div key={contact.id} className={styles.egmsRow}>
+                          <span className={styles.egmsCell}>{index + 1}</span>
+                          <div className={styles.egmsCellStrong}>{contact.nama}</div>
+                          <div className={styles.egmsCell}>{contact.is_vip && <span className={styles.vipBadge}>VIP</span>}</div>
+                          <div className={styles.egmsCell}>
+                            {contact.is_present ? <span className={styles.statusHadir}>Hadir</span> : isSent ? <span className={styles.statusSent}>Terkirim</span> : <span className={styles.statusPending}>Belum</span>}
+                          </div>
+                          <div className={styles.egmsCell}>
+                            <button className={styles.actionBtn} onClick={() => setEditingContact(contact)} title="Edit Tamu">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {isFetching && filteredGuestbook.length === 0 && (
+                      <div className={styles.egmsRowEmpty}>Memuat data buku tamu...</div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </main>
+      </div>
+
+      {/* ─── Bottom Navigation (mobile only) ─── */}
+      <nav className={styles.bottomNav}>
+        <button className={`${styles.bottomNavItem} ${activeView === "send" ? styles.bottomNavItemActive : ""}`} onClick={() => setActiveView("send")}>
+          <span className={styles.bottomNavIcon}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
+          </span>
+          Kirim
+        </button>
+        <button className={`${styles.bottomNavItem} ${activeView === "guestbook" ? styles.bottomNavItemActive : ""}`} onClick={() => setActiveView("guestbook")}>
+          <span className={styles.bottomNavIcon}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+          </span>
+          Buku Tamu
+        </button>
+      </nav>
+
+      {/* ─── Edit Guest Modal ─── */}
+      {editingContact && (
+        <div className={styles.modalOverlay} onClick={() => setEditingContact(null)}>
+          <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className={styles.editModalHead}>
+              <h3 className={styles.editModalTitle}>Edit Tamu</h3>
+              <button className={styles.editModalClose} onClick={() => setEditingContact(null)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className={styles.editModalBody}>
+              {/* Name field */}
+              <div className={styles.editField}>
+                <label className={styles.editLabel}>Nama Tamu</label>
+                <input
+                  type="text"
+                  className={styles.editInput}
+                  value={editingContact.nama}
+                  onChange={(e) => setEditingContact({ ...editingContact, nama: e.target.value })}
+                  placeholder="Masukkan nama tamu"
+                />
+              </div>
+
+              {/* VIP Toggle Row */}
+              <div className={styles.editToggleRow}>
+                <div className={styles.editToggleInfo}>
+                  <span className={styles.editToggleTitle}>Tamu VIP</span>
+                  <span className={styles.editToggleDesc}>Tandai sebagai tamu prioritas</span>
+                </div>
+                <label className={styles.switch}>
+                  <input type="checkbox" checked={editingContact.is_vip} onChange={(e) => setEditingContact({ ...editingContact, is_vip: e.target.checked })} />
+                  <span className={styles.slider}></span>
+                </label>
+              </div>
+
+              {/* Attendance Status */}
+              <div className={styles.editField}>
+                <label className={styles.editLabel}>Status Kehadiran</label>
+                {editingContact.is_present ? (
+                  <div className={styles.editStatusPresent}>
+                    <div className={styles.editStatusIcon}>✓</div>
+                    <div className={styles.editStatusInfo}>
+                      <span className={styles.editStatusTitle}>Sudah Hadir</span>
+                      <span className={styles.editStatusTime}>
+                        {editingContact.present_at
+                          ? new Date(editingContact.present_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+                          : "-"}
+                      </span>
+                    </div>
+                    <button className={styles.editStatusUndo} onClick={() => setEditingContact({ ...editingContact, is_present: false, present_at: null })}>
+                      Batalkan
+                    </button>
+                  </div>
+                ) : (
+                  <button className={styles.editCheckInBtn} onClick={() => setEditingContact({ ...editingContact, is_present: true, present_at: new Date().toISOString() })}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:16,height:16}}><polyline points="20 6 9 17 4 12"/></svg>
+                    Check-in Sekarang
+                  </button>
+                )}
+              </div>
+
+              {/* QR Code */}
+              <div className={styles.editField}>
+                <label className={styles.editLabel}>QR Code</label>
+                <div className={styles.editQrBox}>
+                  <QRCodeSVG value={editingContact.token || "PENDING"} size={100} />
+                  <span className={styles.editQrToken}>{editingContact.token || "—"}</span>
                 </div>
               </div>
             </div>
 
-            <div className={styles.modalFooterCompact}>
-              <button className={styles.cancelBtn} onClick={() => setEditingContact(null)}>
-                Batal
-              </button>
-              <button className={styles.saveBtn} onClick={() => handleUpdateContact(editingContact)}>
-                Simpan
-              </button>
+            {/* Footer */}
+            <div className={styles.editModalFoot}>
+              <button className={styles.editCancelBtn} onClick={() => setEditingContact(null)}>Batal</button>
+              <button className={styles.editSaveBtn} onClick={() => handleUpdateContact(editingContact)}>Simpan Perubahan</button>
             </div>
           </div>
         </div>
       )}
-      {/* Scanner Overlay */}
+
       {isScanning && (
-        <ScannerOverlay 
-          onScanSuccess={handleScanSuccess} 
-          onClose={() => {
-            setIsScanning(false);
-            setScannedContact(null);
-          }} 
+        <ScannerOverlay
+          onScanSuccess={handleScanSuccess}
+          onClose={() => { setIsScanning(false); setScannedContact(null); }}
           scannedContact={scannedContact}
           onReset={() => setScannedContact(null)}
         />
       )}
-      {/* Notification Toast */}
+
       {feedback && (
         <div className={styles.toastSuccess}>
           <div className={styles.toastIcon}>✓</div>
@@ -1025,18 +1013,19 @@ export default function Home() {
           <div>{errorMessage}</div>
         </div>
       )}
-    </>
+    </div>
   );
+
 }
 
 // Komponen Scanner Internal
-function ScannerOverlay({ 
-  onScanSuccess, 
+function ScannerOverlay({
+  onScanSuccess,
   onClose,
   scannedContact,
   onReset
-}: { 
-  onScanSuccess: (text: string) => void; 
+}: {
+  onScanSuccess: (text: string) => void;
   onClose: () => void;
   scannedContact: Contact | null;
   onReset: () => void;
@@ -1048,8 +1037,8 @@ function ScannerOverlay({
     const config = { fps: 15, qrbox: { width: 250, height: 250 } };
 
     html5QrCode.start(
-      { facingMode: "environment" }, 
-      config, 
+      { facingMode: "environment" },
+      config,
       (decodedText) => {
         onScanSuccess(decodedText);
       },
@@ -1090,8 +1079,8 @@ function ScannerOverlay({
             <div className={styles.resultInfo}>
               <span className={styles.resultLabel}>Waktu Hadir</span>
               <span className={styles.resultValue}>
-                {scannedContact.present_at 
-                  ? new Date(scannedContact.present_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) 
+                {scannedContact.present_at
+                  ? new Date(scannedContact.present_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
                   : "-"}
               </span>
             </div>
