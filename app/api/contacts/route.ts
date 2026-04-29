@@ -227,6 +227,18 @@ export async function POST(request: Request) {
 
       if (selectError) throw selectError;
 
+      // Broadcast change
+      const channel = supabase.channel(`sync:${context.tenantId}`);
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          channel.send({
+            type: 'broadcast',
+            event: 'sync-data',
+            payload: { type: 'CONTACTS_UPDATED', action: 'checkin', sender: context.userId }
+          });
+        }
+      });
+
       return NextResponse.json({ 
         contacts: data ?? [],
         savedCount: checkinTargets.length
@@ -264,6 +276,18 @@ export async function POST(request: Request) {
     if (selectError) {
       throw selectError;
     }
+
+    // Broadcast change
+    const channel = supabase.channel(`sync:${context.tenantId}`);
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        channel.send({
+          type: 'broadcast',
+          event: 'sync-data',
+          payload: { type: 'CONTACTS_UPDATED', action: 'mutation', sender: context.userId }
+        });
+      }
+    });
 
     return NextResponse.json({ 
       contacts: data ?? [],
@@ -305,6 +329,18 @@ export async function DELETE(request: Request) {
     if (error) {
       throw error;
     }
+
+    // Broadcast change
+    const channel = supabase.channel(`sync:${context.tenantId}`);
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        channel.send({
+          type: 'broadcast',
+          event: 'sync-data',
+          payload: { type: 'CONTACTS_UPDATED', action: 'delete', id, sender: context.userId }
+        });
+      }
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

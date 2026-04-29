@@ -162,8 +162,8 @@ export default function Home() {
 
   const [scannedContact, setScannedContact] = useState<Contact | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [link, setLink] = useState(() => initialLocal("wa_sender_link", "https://nimantra.vercel.app/?to={nama}&token={id}"));
-  const [pesan, setPesan] = useState(() => initialLocal("wa_sender_pesan", "Halo {nama}, kami mengundang Anda ke acara pernikahan kami. Detail undangan dapat dilihat pada link berikut: {link}"));
+  const [link, setLink] = useState("https://nimantra.vercel.app/?to={nama}&token={id}");
+  const [pesan, setPesan] = useState("Halo {nama}, kami mengundang Anda ke acara pernikahan kami. Detail undangan dapat dilihat pada link berikut: {link}");
   const [feedback, setFeedback] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [username, setUsername] = useState("");
@@ -179,7 +179,7 @@ export default function Home() {
   const [isRoleChecking, setIsRoleChecking] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [includeToken, setIncludeToken] = useState(() => initialLocal("wa_sender_include_token", "true") === "true");
+  const [includeToken, setIncludeToken] = useState(true);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [isAddingGuest, setIsAddingGuest] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -442,6 +442,49 @@ export default function Home() {
     }
   };
 
+  const handleLoadSettings = async () => {
+    if (!session) return;
+    try {
+      const response = await fetch("/api/settings", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const data = await response.json();
+      if (response.ok && data.settings) {
+        setLink(data.settings.link);
+        setPesan(data.settings.pesan);
+        setIncludeToken(data.settings.include_token);
+      }
+    } catch (err) {
+      console.error("Load Settings Error:", err);
+    }
+  };
+
+  const handleUpdateSettings = async (updates: { link?: string; pesan?: string; include_token?: boolean }) => {
+    if (!session) return;
+    
+    // Optimistic update
+    if (updates.link !== undefined) setLink(updates.link);
+    if (updates.pesan !== undefined) setPesan(updates.pesan);
+    if (updates.include_token !== undefined) setIncludeToken(updates.include_token);
+
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          link: updates.link ?? link,
+          pesan: updates.pesan ?? pesan,
+          include_token: updates.include_token ?? includeToken,
+        }),
+      });
+    } catch (err) {
+      console.error("Update Settings Error:", err);
+    }
+  };
+
   // 2. Auth & Realtime Subscription
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -541,16 +584,37 @@ export default function Home() {
     }
 
     // Ambil data awal
-    console.log("[DEBUG] Session & SessionInfo ready, calling handleLoadContacts");
+    console.log("[DEBUG] Session & SessionInfo ready, loading initial data");
     handleLoadContacts();
+    handleLoadSettings();
 
     const tenantFilter = sessionInfo.tenantId
       ? `tenant_id=eq.${sessionInfo.tenantId}`
       : `user_id=eq.${session.user.id}`;
 
-    // Pasang pendengar Realtime khusus untuk user ini
+    // Pasang pendengar Realtime terpadu
+    const channelId = `sync:${sessionInfo.tenantId ?? session.user.id}`;
     const channel = supabase
-      .channel(`realtime_contacts_${sessionInfo.tenantId ?? session.user.id}`)
+      .channel(channelId)
+      // 1. Listen for Broadcast events (Instant)
+      .on(
+        "broadcast",
+        { event: "sync-data" },
+        (payload) => {
+          console.log("[DEBUG] Broadcast received:", payload.payload.type);
+          const { type, sender } = payload.payload;
+          
+          // Abaikan jika pengirim adalah diri sendiri (opsional)
+          if (sender === session.user.id) return;
+
+          if (type === "CONTACTS_UPDATED") {
+            handleLoadContacts(true);
+          } else if (type === "SETTINGS_UPDATED") {
+            handleLoadSettings();
+          }
+        }
+      )
+      // 2. Listen for Database changes (Reliable backup)
       .on(
         "postgres_changes",
         {
@@ -560,8 +624,7 @@ export default function Home() {
           filter: tenantFilter
         },
         (payload) => {
-          console.log("[DEBUG] Realtime change detected:", payload.eventType);
-          
+          console.log("[DEBUG] Postgres contact change:", payload.eventType);
           if (payload.eventType === "UPDATE" && payload.new) {
             const updatedContact = payload.new as Contact;
             setContacts(prev => prev.map(c => c.id === updatedContact.id ? { ...c, ...updatedContact } : c));
@@ -575,9 +638,21 @@ export default function Home() {
             const oldId = payload.old.id;
             setContacts(prev => prev.filter(c => c.id !== oldId));
           } else {
-            // Jika perubahan kompleks (misal bulk), baru ambil data terbaru
             handleLoadContacts(true);
           }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "settings",
+          filter: tenantFilter
+        },
+        () => {
+          console.log("[DEBUG] Postgres settings change detected");
+          handleLoadSettings();
         }
       )
       .subscribe();
@@ -1493,7 +1568,7 @@ export default function Home() {
                           <input
                             type="checkbox"
                             checked={includeToken}
-                            onChange={(e) => setIncludeToken(e.target.checked)}
+                            onChange={(e) => handleUpdateSettings({ include_token: e.target.checked })}
                           />
                           <span className={styles.slider}></span>
                         </label>
@@ -1503,7 +1578,7 @@ export default function Home() {
                     <div className={styles.field}>
                       <label htmlFor="link" className={styles.label}>Link / URL <span className={styles.req}>*</span></label>
                       <div className={styles.inputWrap}>
-                        <input id="link" type="text" className={styles.input} placeholder="Contoh: https://link.com" autoComplete="off" value={link} onChange={(e) => setLink(e.target.value)} />
+                        <input id="link" type="text" className={styles.input} placeholder="Contoh: https://link.com" autoComplete="off" value={link} onChange={(e) => handleUpdateSettings({ link: e.target.value })} />
                         <span className={styles.inputIcon}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg>
                         </span>
@@ -1514,7 +1589,7 @@ export default function Home() {
                     <div className={styles.field}>
                       <label htmlFor="pesan" className={styles.label}>Template Pesan <span className={styles.req}>*</span></label>
                       <div className={styles.inputWrap}>
-                        <textarea id="pesan" className={styles.textarea} placeholder={"Halo {nama}, ini link undangan Anda: {link}"} value={pesan} onChange={(e) => setPesan(e.target.value)} />
+                        <textarea id="pesan" className={styles.textarea} placeholder={"Halo {nama}, ini link undangan Anda: {link}"} value={pesan} onChange={(e) => handleUpdateSettings({ pesan: e.target.value })} />
                         <span className={`${styles.inputIcon} ${styles.inputIconTextarea}`}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
                         </span>
