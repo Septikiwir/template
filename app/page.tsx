@@ -114,6 +114,31 @@ const initialLocal = (key: string, fallback: string = "") => {
   return localStorage.getItem(key) ?? fallback;
 };
 
+// Helper untuk mendapatkan warna kategori berdasarkan nama (hashing)
+const getCategoryColor = (category: string) => {
+  if (!category || category === "-") return { bg: "#f3f4f6", text: "#4b5563" };
+  
+  const colors = [
+    { bg: "#e0f2fe", text: "#0369a1" }, // Blue
+    { bg: "#dcfce7", text: "#15803d" }, // Green
+    { bg: "#fef3c7", text: "#b45309" }, // Amber
+    { bg: "#f3e8ff", text: "#7e22ce" }, // Purple
+    { bg: "#fee2e2", text: "#b91c1c" }, // Red
+    { bg: "#e0e7ff", text: "#4338ca" }, // Indigo
+    { bg: "#fae8ff", text: "#a21caf" }, // Pink
+    { bg: "#f0fdf4", text: "#166534" }, // Emerald
+    { bg: "#fff7ed", text: "#c2410c" }, // Orange
+    { bg: "#ecfeff", text: "#0e7490" }, // Cyan
+  ];
+
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) {
+    hash = category.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+};
+
 export default function Home() {
   const [bulkInput, setBulkInput] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -732,7 +757,7 @@ export default function Home() {
       return 0;
     });
   }, [guestbookBaseList, guestbookQuery, sortConfig]);
-  
+
   const paginatedGuests = useMemo(() => {
     const startIndex = (currentPage - 1) * rowsPerPage;
     return filteredGuestbook.slice(startIndex, startIndex + rowsPerPage);
@@ -790,12 +815,32 @@ export default function Home() {
         return timeB - timeA;
       });
 
+    const activityTotalPages = Math.ceil(recentActivity.length / activityRowsPerPage);
+
+    // Stats by Priority
+    const priorities = ["Reguler", "VIP", "VVIP"];
+    const statsByPriority = priorities.map(p => {
+      const group = contacts.filter(c => c.priority === p);
+      const totalInGroup = group.length;
+      const presentInGroup = group.filter(c => c.is_present).length;
+      return { label: p, total: totalInGroup, present: presentInGroup };
+    });
+
+    // Stats by Category
+    const categories = Array.from(new Set(contacts.map(c => c.kategori || "-")));
+    const statsByCategory = categories.map(cat => {
+      const group = contacts.filter(c => (c.kategori || "-") === cat);
+      const totalInGroup = group.length;
+      const presentInGroup = group.filter(c => c.is_present).length;
+      return { label: cat === "-" ? "Tanpa Kategori" : cat, total: totalInGroup, present: presentInGroup };
+    });
+
     return {
       total, sent, present, vipPresent, pending,
       attendanceRate, deliveryRate, recentActivity,
       addedToday, vipAttendanceRate, totalVip, todayCheckin,
       deliveryStatus, attendanceStatus, vipStatus,
-      manualCount, todayManual
+      manualCount, todayManual, statsByPriority, statsByCategory
     };
   }, [contacts, sentNomors]);
 
@@ -1000,7 +1045,7 @@ export default function Home() {
                       <span className={styles.pStatTrend}>+{dashboardStats.addedToday} Baru</span>
                     </div>
                     <div className={styles.pStatBody}>
-                      <div className={styles.pStatLabel}>Total Tamu</div>
+                      <div className={styles.panelTitle}>Total Tamu</div>
                       <div className={styles.pStatValue}>{dashboardStats.total}</div>
                       <div className={styles.pStatFooter}>
                         <span className={styles.pStatDot} style={{ background: "#3b82f6" }}></span>
@@ -1023,7 +1068,7 @@ export default function Home() {
                       </span>
                     </div>
                     <div className={styles.pStatBody}>
-                      <div className={styles.pStatLabel}>Undangan</div>
+                      <div className={styles.panelTitle}>Undangan</div>
                       <div className={styles.pStatValue}>{dashboardStats.sent}</div>
                       <div className={styles.pStatFooter}>
                         <span className={styles.pStatDot} style={{ background: "#16a34a" }}></span>
@@ -1046,7 +1091,7 @@ export default function Home() {
                       </span>
                     </div>
                     <div className={styles.pStatBody}>
-                      <div className={styles.pStatLabel}>Tamu Tambahan</div>
+                      <div className={styles.panelTitle}>Tamu Tambahan</div>
                       <div className={styles.pStatValue}>{dashboardStats.manualCount}</div>
                       <div className={styles.pStatFooter}>
                         <span className={styles.pStatDot} style={{ background: "#4f46e5" }}></span>
@@ -1069,7 +1114,7 @@ export default function Home() {
                       </span>
                     </div>
                     <div className={styles.pStatBody}>
-                      <div className={styles.pStatLabel}>Prioritas VIP</div>
+                      <div className={styles.panelTitle}>Prioritas VIP</div>
                       <div className={styles.pStatValue}>{dashboardStats.vipPresent}</div>
                       <div className={styles.pStatFooter}>
                         <span className={styles.pStatDot} style={{ background: "#d97706" }}></span>
@@ -1135,6 +1180,52 @@ export default function Home() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                <div className={styles.dashboardSection}>
+                  <h3 className={styles.pageTitle}>By Priority</h3>
+                  <div className={styles.progressGridFlex}>
+                    {dashboardStats.statsByPriority.map(stat => (
+                      <div key={stat.label} className={`${styles.progressCard} ${styles.progressCardFlex}`}>
+                        <div className={styles.progressDetail} style={{ padding: 0, marginBottom: 12 }}>
+                          <div className={styles.panelTitle}>{stat.label}</div>
+                          <div className={styles.progressCount}>
+                            <span className={styles.activityName}>{stat.present}</span>
+                            <span className={styles.activityTime}>/ {stat.total} tamu</span>
+                          </div>
+                        </div>
+                        <div className={styles.progressBarBg}>
+                          <div
+                            className={`${styles.progressBarFill} ${stat.label === "Reguler" ? styles.barReguler : stat.label === "VIP" ? styles.barVIP : stat.label === "VVIP" ? styles.barVVIP : ""}`}
+                            style={{ width: `${stat.total > 0 ? (stat.present / stat.total) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.dashboardSection}>
+                  <h3 className={styles.pageTitle}>By Kategori</h3>
+                  <div className={styles.progressGrid}>
+                    {dashboardStats.statsByCategory.map(stat => (
+                      <div key={stat.label} className={styles.progressCard}>
+                        <div className={styles.progressDetail} style={{ padding: 0, marginBottom: 12 }}>
+                          <div className={styles.panelTitle}>{stat.label}</div>
+                          <div className={styles.progressCount}>
+                            <span className={styles.activityName}>{stat.present}</span>
+                            <span className={styles.activityTime}>/ {stat.total} tamu</span>
+                          </div>
+                        </div>
+                        <div className={styles.progressBarBg}>
+                          <div
+                            className={styles.progressBarFill}
+                            style={{ width: `${stat.total > 0 ? (stat.present / stat.total) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -1449,7 +1540,17 @@ export default function Home() {
                             </span>
                           </div>
                           <div className={styles.egmsCell}>
-                            <span className={styles.categoryBadge}>{contact.kategori || "-"}</span>
+                            {(() => {
+                              const colors = getCategoryColor(contact.kategori);
+                              return (
+                                <span 
+                                  className={styles.categoryBadge}
+                                  style={{ backgroundColor: colors.bg, color: colors.text, border: "none" }}
+                                >
+                                  {contact.kategori || "-"}
+                                </span>
+                              );
+                            })()}
                           </div>
                           <div className={styles.egmsCell}>
                             {contact.is_present ? <span className={styles.statusHadir}>Hadir</span> : isSent ? <span className={styles.statusSent}>Terkirim</span> : <span className={styles.statusPending}>Belum</span>}
@@ -1593,7 +1694,7 @@ export default function Home() {
                           >
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><polyline points="15 18 9 12 15 6" /></svg>
                           </button>
-                          
+
                           {Array.from({ length: activityTotalPages }, (_, i) => i + 1)
                             .filter(p => p === 1 || p === activityTotalPages || (p >= activityPage - 1 && p <= activityPage + 1))
                             .map((p, i, arr) => {

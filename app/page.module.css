@@ -633,10 +633,25 @@
   height: 20px;
 }
 
-.pIconBlue { background: #EBF2FF; color: #3B82F6; }
-.pIconGreen { background: var(--accent-light); color: var(--accent-dark); }
-.pIconIndigo { background: #F0EFFF; color: #6366F1; }
-.pIconAmber { background: #FFF7ED; color: #F59E0B; }
+.pIconBlue {
+  background: #EBF2FF;
+  color: #3B82F6;
+}
+
+.pIconGreen {
+  background: var(--accent-light);
+  color: var(--accent-dark);
+}
+
+.pIconIndigo {
+  background: #F0EFFF;
+  color: #6366F1;
+}
+
+.pIconAmber {
+  background: #FFF7ED;
+  color: #F59E0B;
+}
 
 .pStatTrend {
   font-family: var(--font-body), sans-serif;
@@ -1525,7 +1540,7 @@
     flex-direction: row;
     align-items: center;
   }
-  
+
   .egmsControls .btn {
     width: auto;
   }
@@ -1928,7 +1943,7 @@
 }
 
 /* Internal content wrapper to limit width */
-.scannerViewMaximized > * {
+.scannerViewMaximized>* {
   width: 100%;
   max-width: 1000px;
   height: 100%;
@@ -1944,7 +1959,7 @@
   width: 100%;
   text-align: center;
   color: white;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
 .scannerViewMaximized .pageTitle {
@@ -2019,7 +2034,8 @@
 }
 
 .cameraToggle {
-  display: none; /* Replaced by scannerActionBtn */
+  display: none;
+  /* Replaced by scannerActionBtn */
 }
 
 .scannerOverlayFrame {
@@ -2383,13 +2399,26 @@
 }
 
 @keyframes rotate {
-  100% { transform: rotate(360deg); }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes dash {
-  0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
-  50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
-  100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
+  0% {
+    stroke-dasharray: 1, 150;
+    stroke-dashoffset: 0;
+  }
+
+  50% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -35;
+  }
+
+  100% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -124;
+  }
 }
 
 .toastIcon {
@@ -2445,9 +2474,20 @@
 }
 
 @keyframes pulse-check {
-  0% { transform: scale(1); box-shadow: 0 12px 30px rgba(37, 211, 102, 0.3); }
-  50% { transform: scale(1.05); box-shadow: 0 15px 40px rgba(37, 211, 102, 0.5); }
-  100% { transform: scale(1); box-shadow: 0 12px 30px rgba(37, 211, 102, 0.3); }
+  0% {
+    transform: scale(1);
+    box-shadow: 0 12px 30px rgba(37, 211, 102, 0.3);
+  }
+
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 15px 40px rgba(37, 211, 102, 0.5);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 12px 30px rgba(37, 211, 102, 0.3);
+  }
 }
 
 .resultName {
@@ -3336,7 +3376,9 @@
 .qaIcon svg {
   width: 24px;
   height: 24px;
-}/* --- Pagination --- */
+}
+
+/* --- Pagination --- */
 .paginationContainer {
   display: flex;
   flex-direction: column;
@@ -3440,4 +3482,140 @@
   font-size: 14px;
   color: var(--text-hint);
   padding: 0 4px;
+}
+
+/* --- Dashboard Progress Stats --- */
+.dashboardSection {
+  margin-top: 32px;
+}
+
+.sectionTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progressGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  /* Default mobile: 1 kolom */
+  gap: 16px;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .progressGrid {
+    grid-template-columns: repeat(2, 1fr);
+    /* Tablet: 2 kolom */
+  }
+}
+
+@media (min-width: 1024px) {
+  .progressGrid {
+    grid-template-columns: repeat(auto-fill, minmax(calc(25% - 16px), 1fr));
+    /* Desktop: Maks 4 kolom */
+  }
+}
+
+.progressGridFlex {
+  display: flex;
+  flex-direction: column;
+  /* Default mobile: tumpuk */
+  gap: 16px;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .progressGridFlex {
+    flex-direction: row;
+    /* Tablet/Desktop: sejajar */
+    flex-wrap: wrap;
+  }
+}
+
+.progressCard {
+  width: 100%;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.progressCardFlex {
+  flex: 1;
+}
+
+.progressCard:hover {
+  border-color: var(--accent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.progressLabel {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.progressValue {
+  font-size: 13px;
+  color: var(--text-hint);
+  font-weight: 600;
+}
+
+.progressBarBg {
+  height: 8px;
+  background: var(--surface2);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progressBarFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 4px;
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.barReguler {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa) !important;
+}
+
+.barVIP {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24) !important;
+}
+
+.barVVIP {
+  background: linear-gradient(90deg, #6366f1, #818cf8) !important;
+}
+
+/* --- Table Zebra Striping --- */
+.egmsRow {
+  transition: background-color 0.2s;
+}
+
+
+
+.egmsRow:hover {
+  background-color: #f1f5f9 !important;
+  /* Warna hover yang lebih kontras */
 }
