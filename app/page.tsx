@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 import { QRCodeSVG } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
 import styles from "./page.module.css";
 import { supabase } from "@/lib/supabase";
 import { type Session } from "@supabase/supabase-js";
+import type { Role } from "@/lib/rbac/types";
 
 type Contact = {
   id: number;
@@ -26,6 +28,11 @@ type Contact = {
 type SaveResponse = {
   savedCount: number;
   contacts: Contact[];
+};
+
+type SessionInfo = {
+  role: Role;
+  tenantId?: string | null;
 };
 
 const sanitizeNomor = (value: string) => {
@@ -140,6 +147,7 @@ const getCategoryColor = (category: string) => {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [bulkInput, setBulkInput] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [activeView, setActiveView] = useState<"dashboard" | "send" | "guestbook" | "scan">("dashboard");
@@ -158,6 +166,8 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [session, setSession] = useState<Session | null>(null);
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+  const [isRoleChecking, setIsRoleChecking] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [includeToken, setIncludeToken] = useState(() => initialLocal("wa_sender_include_token", "true") === "true");
@@ -429,24 +439,90 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
+    if (!session) {
+      setSessionInfo(null);
+      setIsRoleChecking(false);
+      return;
+    }
+
+    const loadSessionInfo = async () => {
+      setIsRoleChecking(true);
+      try {
+        if (!session?.access_token) {
+          throw new Error("No access token in session");
+        }
+
+        const response = await fetch("/api/me", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Unauthorized");
+        }
+
+        const data = (await response.json()) as SessionInfo;
+
+        if (!active) return;
+
+        setSessionInfo({ role: data.role, tenantId: data.tenantId ?? null });
+
+        if (data.role === "admin") {
+          router.replace("/admin");
+          return;
+        }
+
+        if (data.role === "superadmin") {
+          router.replace("/superadmin");
+        }
+      } catch {
+        if (active) {
+          setSessionInfo(null);
+        }
+      } finally {
+        if (active) {
+          setIsRoleChecking(false);
+        }
+      }
+    };
+
+    loadSessionInfo();
+
+    return () => {
+      active = false;
+    };
+  }, [session, router]);
+
+  useEffect(() => {
     if (!session) {
       setContacts([]);
+      return;
+    }
+
+    if (!sessionInfo) {
       return;
     }
 
     // Ambil data awal
     handleLoadContacts();
 
+    const tenantFilter = sessionInfo.tenantId
+      ? `tenant_id=eq.${sessionInfo.tenantId}`
+      : `user_id=eq.${session.user.id}`;
+
     // Pasang pendengar Realtime khusus untuk user ini
     const channel = supabase
-      .channel(`realtime_contacts_${session.user.id}`)
+      .channel(`realtime_contacts_${sessionInfo.tenantId ?? session.user.id}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "contacts",
-          filter: `user_id=eq.${session.user.id}`
+          filter: tenantFilter
         },
         () => {
           // Setiap ada perubahan (INSERT/UPDATE/DELETE), ambil data terbaru
@@ -458,7 +534,7 @@ export default function Home() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session]);
+  }, [session, sessionInfo]);
 
   // 3. Local Storage Sync
   useEffect(() => {
@@ -865,7 +941,11 @@ export default function Home() {
     return sortConfig.direction === 'asc' ? "↑" : "↓";
   };
 
-  if (isInitializing) {
+  if (
+    isInitializing ||
+    (session && isRoleChecking) ||
+    (sessionInfo && sessionInfo.role !== "user")
+  ) {
     return <div className={styles.loadingOverlay}>Memuat...</div>;
   }
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSessionContext } from "@/lib/auth/session";
+import { listContacts } from "@/lib/dal/contacts";
+import { requireTenant } from "@/lib/rbac/guards";
 
 export const runtime = "nodejs";
 
@@ -80,41 +82,27 @@ function normalizeContact(contact: IncomingContact) {
   return result;
 }
 
-function getSupabaseUserClient(request: Request) {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return null;
-  }
-
-  const token = authHeader.split(" ")[1];
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-  });
-}
+const getErrorStatus = (message?: string) => {
+  if (message === "Unauthorized") return 401;
+  if (message === "Forbidden") return 403;
+  if (message === "Tenant required") return 400;
+  return 500;
+};
 
 export async function GET(request: Request) {
   try {
-    const supabase = getSupabaseUserClient(request);
-    if (!supabase) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const context = await getSessionContext(request, {
+      allowSuperadminTenantFromRequest: true,
+    });
+
+    if (!context.isSuperadmin && !context.tenantId) {
+      return NextResponse.json({ error: "Tenant required" }, { status: 400 });
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { data, error } = await supabase
-      .from("contacts")
-      .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token, added_via")
-      .order("created_at", { ascending: false });
+    const { data, error } = await listContacts(context.supabase, {
+      tenantId: context.tenantId,
+      isSuperadmin: context.isSuperadmin,
+    });
 
     if (error) {
       throw error;
@@ -122,22 +110,24 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ contacts: data ?? [] });
   } catch (error: any) {
+    const message = error?.message;
+    const status = getErrorStatus(message);
+    if (status !== 500) {
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("DEBUG API ERROR GET:", error);
-    return NextResponse.json({ error: error.message || "Gagal mengambil kontak." }, { status: 500 });
+    return NextResponse.json({ error: message || "Gagal mengambil kontak." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const supabase = getSupabaseUserClient(request);
-    if (!supabase) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const context = await getSessionContext(request, {
+      allowSuperadminTenantFromRequest: true,
+    });
+    requireTenant(context);
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const supabase = context.supabase;
 
     const payload = (await request.json()) as { action?: string; contacts?: IncomingContact[] };
     const contactsRaw = Array.isArray(payload.contacts) ? payload.contacts : [];
@@ -150,7 +140,7 @@ export async function POST(request: Request) {
     const normalizedContacts = contactsRaw
       .map((contact) => normalizeContact(contact))
       .filter((contact) => contact !== null)
-      .map(c => ({ ...c, user_id: user.id }));
+      .map(c => ({ ...c, user_id: context.userId, tenant_id: context.tenantId }));
 
     if (normalizedContacts.length === 0) {
       return NextResponse.json({ error: "Tidak ada kontak valid untuk disimpan." }, { status: 400 });
@@ -163,7 +153,7 @@ export async function POST(request: Request) {
     const { data: existing, error: existingError } = await supabase
       .from("contacts")
       .select("nomor, token, is_present, present_at")
-      .eq("user_id", user.id)
+      .eq("tenant_id", context.tenantId)
       .in("nomor", nomors);
 
     if (existingError) {
@@ -199,7 +189,7 @@ export async function POST(request: Request) {
           const { data: updatedRows, error: updateError } = await supabase
             .from("contacts")
             .update({ is_present: true, present_at: target.present_at })
-            .eq("user_id", user.id)
+            .eq("tenant_id", context.tenantId)
             .eq("nomor", target.nomor)
             .or("is_present.eq.false,is_present.is.null")
             .select("id");
@@ -230,10 +220,10 @@ export async function POST(request: Request) {
       }
 
       // Jika check-in berhasil, refetch dan return
-      const { data, error: selectError } = await supabase
-        .from("contacts")
-        .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token, added_via")
-        .order("created_at", { ascending: false });
+      const { data, error: selectError } = await listContacts(supabase, {
+        tenantId: context.tenantId,
+        isSuperadmin: context.isSuperadmin,
+      });
 
       if (selectError) throw selectError;
 
@@ -259,17 +249,17 @@ export async function POST(request: Request) {
     if (dedupedByNomor.length > 0) {
       const { error: upsertError } = await supabase
         .from("contacts")
-        .upsert(dedupedByNomor, { onConflict: "user_id,nomor" });
+        .upsert(dedupedByNomor, { onConflict: "tenant_id,nomor" });
 
       if (upsertError) {
         throw upsertError;
       }
     }
 
-    const { data, error: selectError } = await supabase
-      .from("contacts")
-      .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token, added_via")
-      .order("created_at", { ascending: false });
+    const { data, error: selectError } = await listContacts(supabase, {
+      tenantId: context.tenantId,
+      isSuperadmin: context.isSuperadmin,
+    });
 
     if (selectError) {
       throw selectError;
@@ -280,23 +270,24 @@ export async function POST(request: Request) {
       savedCount: dedupedByNomor.length
     });
   } catch (error: any) {
-    console.error("DEBUG API ERROR POST:", error);
     const errorMessage = error.message || error.details || "Terjadi kesalahan pada server.";
+    const status = getErrorStatus(errorMessage);
+    if (status !== 500) {
+      return NextResponse.json({ error: errorMessage }, { status });
+    }
+    console.error("DEBUG API ERROR POST:", error);
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = getSupabaseUserClient(request);
-    if (!supabase) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const context = await getSessionContext(request, {
+      allowSuperadminTenantFromRequest: true,
+    });
+    requireTenant(context);
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const supabase = context.supabase;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -309,7 +300,7 @@ export async function DELETE(request: Request) {
       .from("contacts")
       .delete()
       .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("tenant_id", context.tenantId);
 
     if (error) {
       throw error;
@@ -317,7 +308,12 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    const errorMessage = error.message || "Gagal menghapus kontak.";
+    const status = getErrorStatus(errorMessage);
+    if (status !== 500) {
+      return NextResponse.json({ error: errorMessage }, { status });
+    }
     console.error("DEBUG API ERROR DELETE:", error);
-    return NextResponse.json({ error: error.message || "Gagal menghapus kontak." }, { status: 500 });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
