@@ -372,7 +372,7 @@ export default function Home() {
         playSound("error");
         setErrorMessage(`GAGAL: ${contact.nama} sudah melakukan check-in sebelumnya!`);
       } else {
-        const isVip = contact.priority === "VIP" || contact.priority === "VVIP";
+        const isVip = contact.priority?.toUpperCase() === "VIP" || contact.priority?.toUpperCase() === "VVIP";
         playSound(isVip ? "vip" : "success");
         const now = new Date().toISOString();
         const updated = { ...contact, is_present: true, present_at: now };
@@ -781,7 +781,7 @@ export default function Home() {
     const sent = contacts.filter(c => c.is_sent || sentNomors.includes(c.nomor)).length;
     const present = contacts.filter(c => c.is_present).length;
 
-    const vips = contacts.filter(c => c.priority === "VIP" || c.priority === "VVIP");
+    const vips = contacts.filter(c => c.priority?.toUpperCase() === "VIP" || c.priority?.toUpperCase() === "VVIP");
     const totalVip = vips.length;
     const vipPresent = vips.filter(c => c.is_present).length;
 
@@ -1660,7 +1660,7 @@ export default function Home() {
                             <div className={styles.activityContent}>
                               <div className={styles.activityTop}>
                                 <span className={styles.activityName}>{activity.nama}</span>
-                                {(activity.priority === "VIP" || activity.priority === "VVIP") && (
+                                {(activity.priority?.toUpperCase() === "VIP" || activity.priority?.toUpperCase() === "VVIP") && (
                                   <span className={`${styles.prioBadgeSmall} ${activity.priority === "VVIP" ? styles.prioVVIP : styles.prioVIP}`}>
                                     {activity.priority}
                                   </span>
@@ -2159,7 +2159,7 @@ function ScannerView({
   // Auto-dismiss after scan: 1s for regular, 3s for VIP
   useEffect(() => {
     if (!scannedContact) return;
-    const isVip = scannedContact.priority === "VIP" || scannedContact.priority === "VVIP";
+    const isVip = scannedContact.priority?.toUpperCase() === "VIP" || scannedContact.priority?.toUpperCase() === "VVIP";
     const delay = isVip ? 5000 : 3000;
     const timer = setTimeout(() => {
       onReset();
@@ -2181,7 +2181,7 @@ function ScannerView({
           <div className={styles.scanResultCard}>
             <div className={styles.resultCheck}>✓</div>
             <h2 className={styles.resultName}>{scannedContact.nama}</h2>
-            {(scannedContact.priority === "VIP" || scannedContact.priority === "VVIP") && (
+            {(scannedContact.priority?.toUpperCase() === "VIP" || scannedContact.priority?.toUpperCase() === "VVIP") && (
               <div className={styles.resultVip}>TAMU {scannedContact.priority}</div>
             )}
             <div className={styles.resultInfo}>
