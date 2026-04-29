@@ -568,7 +568,125 @@
   display: none;
 }
 
-/* ─── Stats Row ─── */
+/* ─── Premium Dashboard Stats ─── */
+.premiumStatsRow {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 768px) {
+  .premiumStatsRow {
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .premiumStatsRow {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+}
+
+.premiumStatCard {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .premiumStatCard {
+    padding: 16px;
+    gap: 10px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .premiumStatCard {
+    padding: 20px;
+    gap: 12px;
+  }
+}
+
+.pStatHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pStatIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pStatIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pIconBlue { background: #EBF2FF; color: #3B82F6; }
+.pIconGreen { background: var(--accent-light); color: var(--accent-dark); }
+.pIconIndigo { background: #F0EFFF; color: #6366F1; }
+.pIconAmber { background: #FFF7ED; color: #F59E0B; }
+
+.pStatTrend {
+  font-family: var(--font-body), sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pStatBody {
+  display: flex;
+  flex-direction: column;
+}
+
+.pStatLabel {
+  font-family: var(--font-body), sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.pStatValue {
+  font-family: var(--font-display), sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.pStatFooter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 11px;
+  color: var(--text-hint);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.pStatDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* ─── Original Stats (For Guestbook/Send) ─── */
 .statsRow {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -589,7 +707,7 @@
   font-size: 24px;
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1;
+  line-height: 1.2;
 }
 
 .statLabel2 {
@@ -2635,40 +2753,7 @@
 .editStatusUndo {
   background: none;
   border: 1px solid rgba(37, 211, 102, 0.3);
-  color: var(--accent-dark);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.15s;
-  flex-shrink: 0;
-}
-
-.editStatusUndo:hover {
-  background: white;
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-/* Check-in Button */
-.editCheckInBtn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 14px;
-  min-height: 48px;
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-family: var(--font-display), sans-serif;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
+   transition: all 0.2s;
 }
 
 .editCheckInBtn:hover {
@@ -2743,4 +2828,214 @@
 .editSaveBtn:hover {
   background: var(--accent-dark);
   transform: translateY(-1px);
+}
+
+/* ─── Dashboard Container ─── */
+.dashboardContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  animation: fadeUp 0.4s ease both;
+}
+
+.dashboardGridRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+@media (min-width: 768px) {
+  .dashboardGridRow {
+    flex-direction: row;
+    gap: var(--space-2);
+  }
+}
+
+.dashboardBanner {
+  width: 100%;
+  height: 140px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: var(--space-2);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+.dashboardBanner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .dashboardBanner {
+    height: 200px;
+  }
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.circularContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.circularPercent {
+  position: absolute;
+  font-family: var(--font-display), sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.progressDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressTitle {
+  font-family: var(--font-display), sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.progressCount {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display), sans-serif;
+}
+
+.countPrimary {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.countSecondary {
+  font-size: 14px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+/* ─── Activity List (Used in Dashboard) ─── */
+.activityList {
+  display: flex;
+  flex-direction: column;
+}
+
+.activityItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.activityAvatar {
+  width: 36px;
+  height: 36px;
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.activityContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.activityName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activityTime {
+  font-size: 12px;
+  color: var(--text-hint);
+}
+
+.activityBadge {
+  background: #f59e0b;
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.emptyActivity {
+  text-align: center;
+  padding: 20px 0;
+  font-size: 13px;
+  color: var(--text-hint);
+  font-style: italic;
+}
+
+/* ─── Quick Actions (Used in Dashboard) ─── */
+.quickActionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.quickActionBtn {
+  background: white;
+  border-radius: var(--radius-md);
+  padding: 16px var(--space-1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  border: none;
+  box-shadow: var(--shadow);
+}
+
+.quickActionBtn:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  background: var(--surface);
+}
+
+.quickActionBtn span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.qaIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qaIcon svg {
+  width: 24px;
+  height: 24px;
 }

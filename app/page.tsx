@@ -114,7 +114,7 @@ const initialLocal = (key: string, fallback: string = "") => {
 export default function Home() {
   const [bulkInput, setBulkInput] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [activeView, setActiveView] = useState<"send" | "guestbook" | "scan">("send");
+  const [activeView, setActiveView] = useState<"dashboard" | "send" | "guestbook" | "scan">("dashboard");
   const [guestbookQuery, setGuestbookQuery] = useState("");
   const [sentNomors, setSentNomors] = useState<string[]>([]);
   const [isFetching, setIsFetching] = useState(false);
@@ -598,6 +598,44 @@ export default function Home() {
     }));
   };
 
+  const dashboardStats = useMemo(() => {
+    const total = contacts.length;
+    const sent = contacts.filter(c => c.is_sent || sentNomors.includes(c.nomor)).length;
+    const present = contacts.filter(c => c.is_present).length;
+    const vipPresent = contacts.filter(c => c.is_vip && c.is_present).length;
+    const pending = total - sent;
+    const attendanceRate = sent > 0 ? (present / sent) * 100 : 0;
+    const deliveryRate = total > 0 ? (sent / total) * 100 : 0;
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const addedToday = contacts.filter(c => new Date(c.created_at).getTime() >= todayStart.getTime()).length;
+
+    const totalVip = contacts.filter(c => c.is_vip).length;
+    const vipAttendanceRate = totalVip > 0 ? (vipPresent / totalVip) * 100 : 0;
+
+    const todayCheckin = contacts.filter(c =>
+      c.is_present && c.present_at && new Date(c.present_at).getTime() >= todayStart.getTime()
+    ).length;
+
+    // Analytics
+    const deliveryStatus = deliveryRate > 90 ? "Lengkap" : deliveryRate > 50 ? "Berjalan" : "Awal";
+    const attendanceStatus = attendanceRate > 70 ? "Sangat Baik" : attendanceRate > 30 ? "Stabil" : "Rendah";
+    const vipStatus = vipAttendanceRate > 80 ? "Prioritas Aman" : "Pantau VIP";
+
+    const recentActivity = contacts
+      .filter(c => c.is_present && c.present_at)
+      .sort((a, b) => new Date(b.present_at!).getTime() - new Date(a.present_at!).getTime())
+      .slice(0, 5);
+
+    return {
+      total, sent, present, vipPresent, pending,
+      attendanceRate, deliveryRate, recentActivity,
+      addedToday, vipAttendanceRate, totalVip, todayCheckin,
+      deliveryStatus, attendanceStatus, vipStatus
+    };
+  }, [contacts, sentNomors]);
+
   const getSortIcon = (key: keyof Contact | 'no') => {
     if (sortConfig.key !== key) return "↕";
     return sortConfig.direction === 'asc' ? "↑" : "↓";
@@ -695,8 +733,8 @@ export default function Home() {
       {/* ─── Top Bar ─── */}
       <div className={styles.topBar}>
         <div className={styles.topBarBrand}>
-          <button 
-            className={styles.menuToggle} 
+          <button
+            className={styles.menuToggle}
             onClick={() => setIsSidebarMinimized(!isSidebarMinimized)}
             title={isSidebarMinimized ? "Expand Sidebar" : "Collapse Sidebar"}
           >
@@ -720,6 +758,15 @@ export default function Home() {
       <div className={styles.dashboardBody}>
         {/* Sidebar (desktop only) */}
         <nav className={`${styles.sidebar} ${isSidebarMinimized ? styles.sidebarMinimized : ""}`}>
+          <button
+            className={`${styles.sidebarItem} ${activeView === "dashboard" ? styles.sidebarItemActive : ""}`}
+            onClick={() => setActiveView("dashboard")}
+          >
+            <span className={styles.sidebarIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+            </span>
+            <span className={styles.sidebarLabel}>Dashboard</span>
+          </button>
           <button
             className={`${styles.sidebarItem} ${activeView === "send" ? styles.sidebarItemActive : ""}`}
             onClick={() => setActiveView("send")}
@@ -753,7 +800,194 @@ export default function Home() {
         <main className={styles.mainContent}>
           <div className={styles.contentMaxWidth}>
 
-            {activeView === "send" ? (
+            {activeView === "dashboard" ? (
+              <div className={styles.dashboardContainer}>
+                <div className={styles.dashboardBanner}>
+                  <img src="/3.jpg" alt="Wedding Banner" />
+                </div>
+                <h2 className={styles.pageTitle}>
+                  Halo, {session?.user?.email?.split('@')[0] ? session.user.email.split('@')[0].charAt(0).toUpperCase() + session.user.email.split('@')[0].slice(1) : "Pengantin"}
+                </h2>
+                <p className={styles.pageSubtitle}>Ringkasan statistik dan aktivitas tamu secara real-time.</p>
+
+                {/* Stats Row */}
+                <div className={styles.premiumStatsRow}>
+                  {/* Card 1: Total Database */}
+                  <div className={styles.premiumStatCard}>
+                    <div className={styles.pStatHeader}>
+                      <div className={`${styles.pStatIcon} ${styles.pIconBlue}`}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                      </div>
+                      <span className={styles.pStatTrend}>+{dashboardStats.addedToday} Baru</span>
+                    </div>
+                    <div className={styles.pStatBody}>
+                      <div className={styles.pStatLabel}>Total Tamu</div>
+                      <div className={styles.pStatValue}>{dashboardStats.total}</div>
+                      <div className={styles.pStatFooter}>
+                        <span className={styles.pStatDot} style={{ background: "#3b82f6" }}></span>
+                        Aktif di sistem
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Undangan */}
+                  <div className={styles.premiumStatCard}>
+                    <div className={styles.pStatHeader}>
+                      <div className={`${styles.pStatIcon} ${styles.pIconGreen}`}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polyline points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                      </div>
+                      <span className={styles.pStatTrend} style={{
+                        background: dashboardStats.deliveryStatus === "Lengkap" ? "#dcfce7" : "#fff7ed",
+                        color: dashboardStats.deliveryStatus === "Lengkap" ? "#16a34a" : "#ea580c"
+                      }}>
+                        {dashboardStats.deliveryStatus}
+                      </span>
+                    </div>
+                    <div className={styles.pStatBody}>
+                      <div className={styles.pStatLabel}>Undangan</div>
+                      <div className={styles.pStatValue}>{dashboardStats.sent}</div>
+                      <div className={styles.pStatFooter}>
+                        <span className={styles.pStatDot} style={{ background: "#16a34a" }}></span>
+                        /{dashboardStats.total} Tamu terkirim.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Kehadiran */}
+                  <div className={styles.premiumStatCard}>
+                    <div className={styles.pStatHeader}>
+                      <div className={`${styles.pStatIcon} ${styles.pIconIndigo}`}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" /></svg>
+                      </div>
+                      <span className={styles.pStatTrend} style={{
+                        background: "#e0e7ff",
+                        color: "#4338ca"
+                      }}>
+                        {dashboardStats.attendanceStatus}
+                      </span>
+                    </div>
+                    <div className={styles.pStatBody}>
+                      <div className={styles.pStatLabel}>Total Check-in</div>
+                      <div className={styles.pStatValue}>{dashboardStats.present}</div>
+                      <div className={styles.pStatFooter}>
+                        <span className={styles.pStatDot} style={{ background: "#4f46e5" }}></span>
+                        +{dashboardStats.todayCheckin} Hari ini
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 4: VIP Performance */}
+                  <div className={styles.premiumStatCard}>
+                    <div className={styles.pStatHeader}>
+                      <div className={`${styles.pStatIcon} ${styles.pIconAmber}`}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                      </div>
+                      <span className={styles.pStatTrend} style={{
+                        background: "#fef3c7",
+                        color: "#b45309"
+                      }}>
+                        {dashboardStats.vipStatus}
+                      </span>
+                    </div>
+                    <div className={styles.pStatBody}>
+                      <div className={styles.pStatLabel}>Prioritas VIP</div>
+                      <div className={styles.pStatValue}>{dashboardStats.vipPresent}</div>
+                      <div className={styles.pStatFooter}>
+                        <span className={styles.pStatDot} style={{ background: "#d97706" }}></span>
+                        {Math.round(dashboardStats.vipAttendanceRate)}% Kehadiran
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Row (Two Cards) */}
+                <div className={styles.dashboardGridRow}>
+                  <div className={styles.panel} style={{ flex: 1, margin: 0 }}>
+                    <div className={styles.panelBody} style={{ padding: "20px" }}>
+                      <div className={styles.progressRow}>
+                        <div className={styles.circularContainer}>
+                          <svg width="64" height="64" viewBox="0 0 64 64">
+                            <circle cx="32" cy="32" r="28" stroke="#f3f4f6" strokeWidth="6" fill="none" />
+                            <circle cx="32" cy="32" r="28" stroke="#10b981" strokeWidth="6" fill="none"
+                              strokeDasharray="175.9"
+                              strokeDashoffset={175.9 - (175.9 * dashboardStats.attendanceRate) / 100}
+                              strokeLinecap="round"
+                              transform="rotate(-90 32 32)"
+                              style={{ transition: "stroke-dashoffset 0.8s ease" }}
+                            />
+                          </svg>
+                          <span className={styles.circularPercent}>{Math.round(dashboardStats.attendanceRate)}%</span>
+                        </div>
+                        <div className={styles.progressDetail}>
+                          <div className={styles.panelTitle}>Statistik Check-in</div>
+                          <div className={styles.progressCount}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18, color: "#10b981" }}><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                            <span className={styles.activityName}>{dashboardStats.present}</span>
+                            <span className={styles.activityTime}>/ {dashboardStats.sent} tamu</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.panel} style={{ flex: 1, margin: 0 }}>
+                    <div className={styles.panelBody} style={{ padding: "20px" }}>
+                      <div className={styles.progressRow}>
+                        <div className={styles.circularContainer}>
+                          <svg width="64" height="64" viewBox="0 0 64 64">
+                            <circle cx="32" cy="32" r="28" stroke="#f3f4f6" strokeWidth="6" fill="none" />
+                            <circle cx="32" cy="32" r="28" stroke="var(--accent)" strokeWidth="6" fill="none"
+                              strokeDasharray="175.9"
+                              strokeDashoffset={175.9 - (175.9 * dashboardStats.deliveryRate) / 100}
+                              strokeLinecap="round"
+                              transform="rotate(-90 32 32)"
+                              style={{ transition: "stroke-dashoffset 0.8s ease" }}
+                            />
+                          </svg>
+                          <span className={styles.circularPercent}>{Math.round(dashboardStats.deliveryRate)}%</span>
+                        </div>
+                        <div className={styles.progressDetail}>
+                          <div className={styles.panelTitle}>Statistik Undangan</div>
+                          <div className={styles.progressCount}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18, color: "var(--accent)" }}><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                            <span className={styles.activityName}>{dashboardStats.sent}</span>
+                            <span className={styles.activityTime}>/ {dashboardStats.total} tamu</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.panel}>
+                  <div className={styles.panelHeader}>
+                    <span className={styles.panelTitle}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}><path d="M12 20v-6M6 20V10M18 20V4" /></svg>
+                      Aktivitas Terbaru
+                    </span>
+                  </div>
+                  <div className={styles.panelBody}>
+                    <div className={styles.activityList}>
+                      {dashboardStats.recentActivity.length > 0 ? (
+                        dashboardStats.recentActivity.map(activity => (
+                          <div key={activity.id} className={styles.activityItem} style={{ border: "none", padding: "8px 0", background: "none", borderBottom: "1px solid var(--border)", borderRadius: 0 }}>
+                            <div className={styles.activityAvatar}>{activity.nama.charAt(0)}</div>
+                            <div className={styles.activityContent}>
+                              <div className={styles.activityName}>{activity.nama}</div>
+                              <div className={styles.activityTime}>Check-in: {activity.present_at ? new Date(activity.present_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-"}</div>
+                            </div>
+                            {activity.is_vip && <span className={styles.activityBadge}>VIP</span>}
+                          </div>
+                        ))
+                      ) : (
+                        <div className={styles.emptyActivity}>Belum ada tamu yang hadir hari ini.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            ) : activeView === "send" ? (
               <>
                 <h2 className={styles.pageTitle}>Kirim Pesan Massal</h2>
                 <p className={styles.pageSubtitle}>Kelola kontak dan kirim undangan WhatsApp secara massal.</p>
@@ -1017,6 +1251,12 @@ export default function Home() {
 
       {/* ─── Bottom Navigation (mobile only) ─── */}
       <nav className={styles.bottomNav}>
+        <button className={`${styles.bottomNavItem} ${activeView === "dashboard" ? styles.bottomNavItemActive : ""}`} onClick={() => setActiveView("dashboard")}>
+          <span className={styles.bottomNavIcon}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+          </span>
+          Dashboard
+        </button>
         <button className={`${styles.bottomNavItem} ${activeView === "send" ? styles.bottomNavItemActive : ""}`} onClick={() => setActiveView("send")}>
           <span className={styles.bottomNavIcon}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
@@ -1181,7 +1421,7 @@ export default function Home() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
-            
+
             <div className={styles.editModalBody}>
               <div style={{ textAlign: "center", padding: "10px 0" }}>
                 <p style={{ fontSize: "15px", color: "var(--text-primary)", lineHeight: 1.5 }}>
@@ -1192,8 +1432,8 @@ export default function Home() {
 
             <div className={styles.editModalFoot}>
               <button className={styles.editCancelBtn} onClick={() => setShowDiscardConfirm(false)}>Lanjut Edit</button>
-              <button 
-                className={styles.editSaveBtn} 
+              <button
+                className={styles.editSaveBtn}
                 style={{ background: "#f59e0b", boxShadow: "0 4px 12px rgba(245, 158, 11, 0.25)" }}
                 onClick={() => {
                   setEditingContact(null);
