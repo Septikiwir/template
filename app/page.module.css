@@ -1881,15 +1881,29 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
   display: flex;
+  flex-direction: column;
+  gap: 16px;
   align-items: center;
   justify-content: center;
   font-family: var(--font-display), sans-serif;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--accent-dark);
   z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+.loadingOverlay::after {
+  content: "";
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--accent-light);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: rotate 0.8s linear infinite;
 }
 
 .vipBadge {

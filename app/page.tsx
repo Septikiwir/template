@@ -149,8 +149,12 @@ const getCategoryColor = (category: string) => {
 export default function Home() {
   const router = useRouter();
   const [bulkInput, setBulkInput] = useState("");
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [activeView, setActiveView] = useState<"dashboard" | "send" | "guestbook" | "scan">("dashboard");
+  const [contacts, setContacts] = useState<Contact[]>(() => {
+    if (typeof window === "undefined") return [];
+    const cached = localStorage.getItem("wa_sender_contacts");
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [activeView, setActiveView] = useState<"dashboard" | "send" | "guestbook" | "scan">(() => initialLocal("wa_sender_active_view", "dashboard") as any);
   const [guestbookQuery, setGuestbookQuery] = useState("");
   const [sentNomors, setSentNomors] = useState<string[]>([]);
   const [isFetching, setIsFetching] = useState(false);
@@ -166,7 +170,12 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [session, setSession] = useState<Session | null>(null);
-  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(() => {
+    if (typeof window === "undefined") return null;
+    const cached = localStorage.getItem("wa_sender_session_info");
+    return cached ? JSON.parse(cached) : null;
+  });
+  const sessionFetchedRef = useRef<string | null>(null);
   const [isRoleChecking, setIsRoleChecking] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -403,10 +412,21 @@ export default function Home() {
   };
 
   // 1. Handle Ambil Data
-  const handleLoadContacts = async () => {
+  const handleLoadContacts = async (force: boolean = false) => {
     if (!session) return;
+
+    // Jika baru saja diupdate (kurang dari 5 detik), lewati
+    const lastFetched = localStorage.getItem("wa_sender_contacts_last_fetched");
+    const now = Date.now();
+    if (!force && lastFetched && now - Number(lastFetched) < 5000 && contacts.length > 0) {
+      console.log("[DEBUG] Skipping fetch, recent data exists");
+      return;
+    }
+
     try {
-      setIsFetching(true);
+      console.log("[DEBUG] Fetching contacts...");
+      if (contacts.length === 0) setIsFetching(true);
+      
       const response = await fetch("/api/contacts", {
         headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store"
@@ -416,6 +436,8 @@ export default function Home() {
         const freshContacts = Array.isArray(data.contacts) ? data.contacts : [];
         setContacts(freshContacts);
         setSentNomors(freshContacts.filter((c: Contact) => c.is_sent).map((c: Contact) => c.nomor));
+        localStorage.setItem("wa_sender_contacts_last_fetched", Date.now().toString());
+        localStorage.setItem("wa_sender_contacts", JSON.stringify(freshContacts));
       }
     } catch (err) {
       console.error("Load Error:", err);
@@ -442,10 +464,24 @@ export default function Home() {
     let active = true;
 
     if (!session) {
-      setSessionInfo(null);
+      if (!isInitializing) {
+        setSessionInfo(null);
+        setIsRoleChecking(false);
+        sessionFetchedRef.current = null;
+        localStorage.removeItem("wa_sender_session_info");
+        localStorage.removeItem("wa_sender_contacts");
+      }
+      return;
+    }
+
+    // Jika sudah pernah fetch untuk session ini, lewatkan
+    if (sessionFetchedRef.current === session.access_token) {
       setIsRoleChecking(false);
       return;
     }
+
+    // Segera kunci agar tidak ada fetch paralel
+    sessionFetchedRef.current = session.access_token;
 
     const loadSessionInfo = async () => {
       setIsRoleChecking(true);
@@ -468,7 +504,9 @@ export default function Home() {
 
         if (!active) return;
 
-        setSessionInfo({ role: data.role, tenantId: data.tenantId ?? null });
+        const info = { role: data.role, tenantId: data.tenantId ?? null };
+        setSessionInfo(info);
+        localStorage.setItem("wa_sender_session_info", JSON.stringify(info));
 
         if (data.role === "admin") {
           router.replace("/admin");
@@ -494,7 +532,7 @@ export default function Home() {
     return () => {
       active = false;
     };
-  }, [session, router]);
+  }, [session, router, sessionInfo]);
 
   useEffect(() => {
     if (!session) {
@@ -507,6 +545,7 @@ export default function Home() {
     }
 
     // Ambil data awal
+    console.log("[DEBUG] Session & SessionInfo ready, calling handleLoadContacts");
     handleLoadContacts();
 
     const tenantFilter = sessionInfo.tenantId
@@ -525,8 +564,8 @@ export default function Home() {
           filter: tenantFilter
         },
         () => {
-          // Setiap ada perubahan (INSERT/UPDATE/DELETE), ambil data terbaru
-          handleLoadContacts();
+          // Setiap ada perubahan (INSERT/UPDATE/DELETE), ambil data terbaru (paksa fetch)
+          handleLoadContacts(true);
         }
       )
       .subscribe();
@@ -542,8 +581,10 @@ export default function Home() {
       localStorage.setItem("wa_sender_link", link);
       localStorage.setItem("wa_sender_pesan", pesan);
       localStorage.setItem("wa_sender_include_token", includeToken.toString());
+      localStorage.setItem("wa_sender_active_view", activeView);
+      localStorage.setItem("wa_sender_contacts", JSON.stringify(contacts));
     }
-  }, [link, pesan, includeToken]);
+  }, [link, pesan, includeToken, activeView, contacts]);
 
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -715,16 +756,7 @@ export default function Home() {
     setTimeout(() => setIsSending(false), contacts.length * 220 + 300);
   };
 
-  const handleSendSingleContact = (contact: Contact) => {
-    if (templateInvalid) {
-      setErrorMessage("Lengkapi link dan template. Template wajib berisi {nama} dan {link}.");
-      return;
-    }
-
-    const finalLink = getFinalLink(link, includeToken);
-    const waUrl = `https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, finalLink, contact.token))}`;
-    window.open(waUrl, "_blank");
-
+  const handleMarkAsSent = (contact: Contact) => {
     setContacts(prev => prev.map(c =>
       c.id === contact.id ? { ...c, is_sent: true } : c
     ));
@@ -751,6 +783,19 @@ export default function Home() {
         }),
       });
     }
+  };
+
+  const handleSendSingleContact = (contact: Contact) => {
+    if (templateInvalid) {
+      setErrorMessage("Lengkapi link dan template. Template wajib berisi {nama} dan {link}.");
+      return;
+    }
+
+    const finalLink = getFinalLink(link, includeToken);
+    const waUrl = `https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, finalLink, contact.token))}`;
+    window.open(waUrl, "_blank");
+
+    handleMarkAsSent(contact);
   };
 
   const handleExportExcel = () => {
@@ -942,8 +987,8 @@ export default function Home() {
   };
 
   if (
-    isInitializing ||
-    (session && isRoleChecking) ||
+    (isInitializing && !sessionInfo) ||
+    (session && isRoleChecking && !sessionInfo) ||
     (sessionInfo && sessionInfo.role !== "user")
   ) {
     return <div className={styles.loadingOverlay}>Memuat...</div>;
@@ -1514,13 +1559,19 @@ export default function Home() {
                                 <span className={styles.contactNumber}>{contact.nomor}</span>
                               </div>
                               <div className={styles.rowActions}>
-                                <button
-                                  className={isSent ? styles.sentBtn : styles.miniBtn}
-                                  onClick={() => handleSendSingleContact(contact)}
-                                  disabled={isSent}
-                                >
-                                  {isSent ? "Terkirim" : "Kirim"}
-                                </button>
+                                {isSent ? (
+                                  <span className={styles.sentBtn}>Terkirim</span>
+                                ) : (
+                                  <a
+                                    href={`https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, getFinalLink(link, includeToken), contact.token))}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={styles.miniBtn}
+                                    onClick={() => handleMarkAsSent(contact)}
+                                  >
+                                    Kirim
+                                  </a>
+                                )}
                               </div>
                             </div>
                           );
