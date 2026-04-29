@@ -13,6 +13,7 @@ type IncomingContact = {
   is_present?: unknown;
   present_at?: unknown;
   token?: unknown;
+  added_via?: unknown;
 };
 
 const generateToken = () => {
@@ -51,12 +52,24 @@ function normalizeContact(contact: IncomingContact) {
         ? contact.present_at
         : undefined;
   const token = typeof contact.token === "string" ? contact.token : undefined;
+  const added_via = typeof contact.added_via === "string" ? contact.added_via : undefined;
 
   if (!nama || !nomor) {
     return null;
   }
 
-  const result: any = { nama, nomor, priority, kategori, is_sent, is_present, token };
+  const result: any = { 
+    nama, 
+    nomor, 
+    priority: String(priority), 
+    kategori: String(kategori), 
+    is_sent, 
+    is_present, 
+    token 
+  };
+  if (added_via !== undefined) {
+    result.added_via = added_via;
+  }
   if (present_at !== undefined) {
     result.present_at = present_at;
   }
@@ -100,7 +113,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from("contacts")
-      .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token")
+      .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token, added_via")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -219,7 +232,7 @@ export async function POST(request: Request) {
       // Jika check-in berhasil, refetch dan return
       const { data, error: selectError } = await supabase
         .from("contacts")
-        .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token")
+        .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token, added_via")
         .order("created_at", { ascending: false });
 
       if (selectError) throw selectError;
@@ -255,7 +268,7 @@ export async function POST(request: Request) {
 
     const { data, error: selectError } = await supabase
       .from("contacts")
-      .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token")
+      .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token, added_via")
       .order("created_at", { ascending: false });
 
     if (selectError) {

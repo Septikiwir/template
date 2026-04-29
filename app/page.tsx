@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import * as XLSX from "xlsx";
 import { QRCodeSVG } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
 import styles from "./page.module.css";
@@ -18,6 +19,7 @@ type Contact = {
   is_present: boolean;
   present_at: string | null;
   token: string;
+  added_via?: "manual" | "bulk";
 };
 
 
@@ -36,7 +38,7 @@ const sanitizeNomor = (value: string) => {
 
 const parseBulkInput = (bulkInput: string) => {
   const lines = bulkInput.split("\n");
-  const validContacts: { nama: string; nomor: string; priority: string; kategori: string }[] = [];
+  const validContacts: { nama: string; nomor: string; priority: string; kategori: string; added_via: "bulk" }[] = [];
   const invalidLines: string[] = [];
 
   for (const rawLine of lines) {
@@ -51,15 +53,13 @@ const parseBulkInput = (bulkInput: string) => {
 
     const nama = parts[0]?.trim() ?? "";
     const nomor = sanitizeNomor(parts[1]?.trim() ?? "");
-    const priority = parts[2]?.trim() || "Reguler";
-    const kategori = parts[3]?.trim() || "-";
 
     if (!nama || !nomor) {
       invalidLines.push(rawLine);
       continue;
     }
 
-    validContacts.push({ nama, nomor, priority, kategori });
+    validContacts.push({ nama, nomor, priority: "Reguler", kategori: "-", added_via: "bulk" });
   }
 
   return { validContacts, invalidLines };
@@ -137,8 +137,16 @@ export default function Home() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [includeToken, setIncludeToken] = useState(() => initialLocal("wa_sender_include_token", "true") === "true");
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [isAddingGuest, setIsAddingGuest] = useState(false);
+  const [newGuestData, setNewGuestData] = useState({ nama: "", nomor: "", priority: "Reguler", kategori: "-" });
   const [isAddingNewCategory, setIsAddingNewCategory] = useState(false);
   const [newCategoryValue, setNewCategoryValue] = useState("");
+  const [importCategory, setImportCategory] = useState("-");
+  const [importPriority, setImportPriority] = useState("Reguler");
+  const [isAddingNewCategoryImport, setIsAddingNewCategoryImport] = useState(false);
+  const [newCategoryValueImport, setNewCategoryValueImport] = useState("");
+  const [tempImportCategory, setTempImportCategory] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState("");
   const [initialEditingContact, setInitialEditingContact] = useState<string | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
@@ -154,16 +162,18 @@ export default function Home() {
   // Helper to map username to internal email for Supabase Auth
   const getInternalEmail = (user: string) => `${user.trim().toLowerCase()}@wedding.com`;
 
+  const [copied, setCopied] = useState(false);
   const pesanMissingNama = pesan.trim() !== "" && !pesan.includes("{nama}");
   const pesanMissingLink = pesan.trim() !== "" && !pesan.includes("{link}");
   const templateInvalid = !pesan.trim() || !link.trim() || pesanMissingNama || pesanMissingLink;
 
   // Efek untuk membersihkan notifikasi otomatis setelah 3 detik
   useEffect(() => {
-    if (feedback || errorMessage) {
+    if (feedback || errorMessage || loadingMessage) {
       const timer = setTimeout(() => {
         setFeedback("");
         setErrorMessage("");
+        setLoadingMessage("");
       }, 3000);
       return () => clearTimeout(timer);
     }
@@ -215,7 +225,8 @@ export default function Home() {
             is_sent: updated.is_sent,
             is_present: updated.is_present,
             present_at: updated.present_at,
-            token: updated.token
+            token: updated.token,
+            added_via: updated.added_via
           }]
         }),
       });
@@ -261,6 +272,56 @@ export default function Home() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Gagal menghapus.");
     }
+  };
+
+  const handleAddGuest = async () => {
+    if (!session) return;
+    if (!newGuestData.nama || !newGuestData.nomor) {
+      alert("Nama dan Nomor wajib diisi!");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/contacts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          contacts: [{
+            nama: newGuestData.nama,
+            nomor: newGuestData.nomor,
+            priority: newGuestData.priority,
+            kategori: newGuestData.kategori,
+            added_via: "manual",
+            is_sent: true,
+            is_present: false
+          }]
+        }),
+      });
+
+      if (!response.ok) throw new Error("Gagal menyimpan tamu");
+
+      const result = await response.json();
+      setContacts(result.contacts);
+      setIsAddingGuest(false);
+      setNewGuestData({ nama: "", nomor: "", priority: "Reguler", kategori: "-" });
+      setFeedback("Tamu berhasil ditambahkan!");
+    } catch (err) {
+      console.error(err);
+      setErrorMessage("Gagal menambahkan tamu.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCopyPreview = () => {
+    if (!previewMessage) return;
+    navigator.clipboard.writeText(previewMessage);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const playSound = (type: "success" | "vip" | "error") => {
@@ -423,25 +484,57 @@ export default function Home() {
     try {
       setIsSaving(true);
 
+      // Ambil nilai kategori terbaru dengan lebih tegas
+      let finalCategory = "-";
+      if (isAddingNewCategoryImport) {
+        finalCategory = newCategoryValueImport.trim() || "-";
+      } else {
+        finalCategory = importCategory;
+      }
+
+      // Beri tahu user kategori apa yang sedang diproses agar bisa kita lacak
+      const readableCategory = finalCategory === "-" ? "Tanpa Kategori" : finalCategory;
+      setLoadingMessage(`Sedang menyimpan ${validContacts.length} kontak ke kategori: ${readableCategory}...`);
+
+      const payloadContacts = validContacts.map(c => {
+        return {
+          nama: c.nama,
+          nomor: c.nomor,
+          priority: "Reguler", // Default reguler karena UI priority dihapus
+          kategori: finalCategory,
+          added_via: "bulk" as const
+        };
+      });
+
       const response = await fetch("/api/contacts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ contacts: validContacts }),
+        body: JSON.stringify({ contacts: payloadContacts }),
       });
 
+      setLoadingMessage("");
       const data = (await response.json()) as { contacts?: Contact[], savedCount?: number, error?: string };
 
       if (!response.ok) {
         throw new Error(data.error || "Gagal menyimpan kontak.");
       }
 
+      // Pastikan kita mengambil data terbaru dari database
       const savedCount = Number(data.savedCount ?? 0);
-      setContacts(Array.isArray(data.contacts) ? data.contacts : []);
+      const savedContacts = Array.isArray(data.contacts) ? data.contacts : [];
+      setContacts(savedContacts);
+
       setSentNomors([]);
       setBulkInput("");
+
+      // Reset status kategori setelah berhasil
+      setIsAddingNewCategoryImport(false);
+      setNewCategoryValueImport("");
+      setTempImportCategory(null);
+      setImportCategory("-");
 
       if (invalidLines.length > 0) {
         setFeedback(
@@ -451,6 +544,7 @@ export default function Home() {
         setFeedback(`Berhasil simpan ${savedCount} kontak.`);
       }
     } catch (error) {
+      setLoadingMessage("");
       const message = error instanceof Error ? error.message : "Terjadi kesalahan.";
       setErrorMessage(message);
     } finally {
@@ -478,8 +572,11 @@ export default function Home() {
       id: c.id,
       nama: c.nama,
       nomor: c.nomor,
+      priority: c.priority,
+      kategori: c.kategori,
       is_sent: true,
-      token: c.token
+      token: c.token,
+      added_via: c.added_via
     }));
 
     contacts.forEach((contact, index) => {
@@ -540,12 +637,55 @@ export default function Home() {
             id: contact.id,
             nama: contact.nama,
             nomor: contact.nomor,
+            priority: contact.priority,
+            kategori: contact.kategori,
             is_sent: true,
-            token: contact.token
+            token: contact.token,
+            added_via: contact.added_via
           }]
         }),
       });
     }
+  };
+
+  const handleExportExcel = () => {
+    const presentContacts = contacts.filter(c => c.is_present);
+
+    if (presentContacts.length === 0) {
+      setErrorMessage("Tidak ada data tamu hadir untuk di-export.");
+      return;
+    }
+
+    // Urutkan berdasarkan waktu check-in (paling awal di atas)
+    const sortedContacts = [...presentContacts].sort((a, b) => {
+      const timeA = a.present_at ? new Date(a.present_at).getTime() : 0;
+      const timeB = b.present_at ? new Date(b.present_at).getTime() : 0;
+      return timeA - timeB;
+    });
+
+    const dataToExport = sortedContacts.map((c, index) => ({
+      "No": index + 1,
+      "Nama": c.nama,
+      "Nomor": c.nomor,
+      "Priority": c.priority,
+      "Kategori": c.kategori,
+      "Status": "Hadir",
+      "Waktu Datang": c.present_at ? new Date(c.present_at).toLocaleString("id-ID") : "-"
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tamu Hadir");
+
+    // Auto-size columns
+    const max_width = dataToExport.reduce((w, r) => Math.max(w, r.Nama.length), 10);
+    worksheet["!cols"] = [{ wch: 5 }, { wch: max_width + 5 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 10 }, { wch: 20 }];
+
+    const userName = username || session?.user?.email?.split("@")[0] || "User";
+    const dateStr = new Date().toLocaleDateString("id-ID").replace(/\//g, "-");
+
+    XLSX.writeFile(workbook, `${userName}_${dateStr}.xlsx`);
+    setFeedback("Berhasil meng-export data tamu hadir.");
   };
 
   const sentCount = contacts.filter(c => c.is_sent || sentNomors.includes(c.nomor)).length;
@@ -609,11 +749,18 @@ export default function Home() {
     const total = contacts.length;
     const sent = contacts.filter(c => c.is_sent || sentNomors.includes(c.nomor)).length;
     const present = contacts.filter(c => c.is_present).length;
-    
+
     const vips = contacts.filter(c => c.priority === "VIP" || c.priority === "VVIP");
     const totalVip = vips.length;
     const vipPresent = vips.filter(c => c.is_present).length;
-    
+
+    const manualCount = contacts.filter(c => c.added_via === "manual").length;
+    const todayManual = contacts.filter(c => {
+      if (c.added_via !== "manual") return false;
+      const today = new Date().toISOString().split("T")[0];
+      return c.created_at?.startsWith(today);
+    }).length;
+
     const pending = total - sent;
     const attendanceRate = sent > 0 ? (present / sent) * 100 : 0;
     const deliveryRate = total > 0 ? (sent / total) * 100 : 0;
@@ -639,10 +786,11 @@ export default function Home() {
       .slice(0, 5);
 
     return {
-      total, sent, present, vipPresent, pending, 
-      attendanceRate, deliveryRate, recentActivity, 
+      total, sent, present, vipPresent, pending,
+      attendanceRate, deliveryRate, recentActivity,
       addedToday, vipAttendanceRate, totalVip, todayCheckin,
-      deliveryStatus, attendanceStatus, vipStatus
+      deliveryStatus, attendanceStatus, vipStatus,
+      manualCount, todayManual
     };
   }, [contacts, sentNomors]);
 
@@ -872,25 +1020,25 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Card 3: Kehadiran */}
+                  {/* Card 3: Tamu Tambahan */}
                   <div className={styles.premiumStatCard}>
                     <div className={styles.pStatHeader}>
                       <div className={`${styles.pStatIcon} ${styles.pIconIndigo}`}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" /></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="16" y1="11" x2="22" y2="11" /></svg>
                       </div>
                       <span className={styles.pStatTrend} style={{
                         background: "#e0e7ff",
                         color: "#4338ca"
                       }}>
-                        {dashboardStats.attendanceStatus}
+                        MANUAL
                       </span>
                     </div>
                     <div className={styles.pStatBody}>
-                      <div className={styles.pStatLabel}>Total Check-in</div>
-                      <div className={styles.pStatValue}>{dashboardStats.present}</div>
+                      <div className={styles.pStatLabel}>Tamu Tambahan</div>
+                      <div className={styles.pStatValue}>{dashboardStats.manualCount}</div>
                       <div className={styles.pStatFooter}>
                         <span className={styles.pStatDot} style={{ background: "#4f46e5" }}></span>
-                        +{dashboardStats.todayCheckin} Hari ini
+                        +{dashboardStats.todayManual} Hari ini
                       </div>
                     </div>
                   </div>
@@ -982,7 +1130,7 @@ export default function Home() {
                   <div className={styles.panelHeader}>
                     <span className={styles.panelTitle}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}><path d="M12 20v-6M6 20V10M18 20V4" /></svg>
-                      Aktivitas Terbaru
+                      Riwayat Kehadiran Tamu
                     </span>
                   </div>
                   <div className={styles.panelBody}>
@@ -1046,10 +1194,73 @@ export default function Home() {
                       value={bulkInput}
                       onChange={(e) => setBulkInput(e.target.value)}
                     />
-                    <div className={styles.hint}>Format: <strong>Nama, Nomor, Priority, Kategori</strong> (Satu baris per tamu).</div>
+                    <div className={styles.hint}>Format: <strong>Nama, Nomor</strong> (Satu baris per tamu).</div>
+
+                    <div className={styles.importSettings}>
+                      <div className={styles.importField}>
+                        <label className={styles.importLabel}>Set Kategori</label>
+                        {!isAddingNewCategoryImport ? (
+                          <select
+                            className={styles.importSelect}
+                            value={importCategory}
+                            onChange={(e) => {
+                              if (e.target.value === "ADD_NEW") {
+                                setIsAddingNewCategoryImport(true);
+                              } else {
+                                setImportCategory(e.target.value);
+                              }
+                            }}
+                          >
+                            <option value="-">Tanpa Kategori</option>
+                            {uniqueCategories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                            {tempImportCategory && !uniqueCategories.includes(tempImportCategory) && (
+                              <option value={tempImportCategory}>{tempImportCategory}</option>
+                            )}
+                            <option value="ADD_NEW">+ Tambah Kategori Baru...</option>
+                          </select>
+                        ) : (
+                          <div className={styles.manualInputRow}>
+                            <input
+                              type="text"
+                              className={styles.importSelect}
+                              placeholder="Ketik kategori baru..."
+                              autoFocus
+                              value={newCategoryValueImport}
+                              onChange={(e) => setNewCategoryValueImport(e.target.value)}
+                            />
+                            <button
+                              className={styles.miniBtnPrimary}
+                              onClick={() => {
+                                if (newCategoryValueImport.trim()) {
+                                  const newVal = newCategoryValueImport.trim();
+                                  setTempImportCategory(newVal);
+                                  setImportCategory(newVal);
+                                }
+                                setIsAddingNewCategoryImport(false);
+                                setNewCategoryValueImport("");
+                              }}
+                            >
+                              Simpan
+                            </button>
+                            <button
+                              className={styles.miniBtnGhost}
+                              onClick={() => {
+                                setIsAddingNewCategoryImport(false);
+                                setNewCategoryValueImport("");
+                              }}
+                            >
+                              Batal
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <button
                       className={styles.btn}
-                      style={{ marginTop: "12px" }}
+                      style={{ marginTop: "16px" }}
                       onClick={handleSaveContacts}
                       disabled={isSaving}
                     >
@@ -1112,7 +1323,12 @@ export default function Home() {
 
                     {previewMessage && (
                       <div className={styles.previewSection}>
-                        <div className={styles.previewLabel}>Pratinjau Pesan</div>
+                        <div className={styles.previewLabelRow}>
+                          <div className={styles.previewLabel}>Pratinjau Pesan</div>
+                          <button className={styles.copyBtn} onClick={handleCopyPreview}>
+                            {copied ? "Tersalin!" : "Salin"}
+                          </button>
+                        </div>
                         <div className={styles.previewBox}>{previewMessage}</div>
                       </div>
                     )}
@@ -1208,6 +1424,14 @@ export default function Home() {
                         value={guestbookQuery}
                         onChange={(e) => setGuestbookQuery(e.target.value)}
                       />
+                      <button className={styles.btn} onClick={() => setIsAddingGuest(true)} style={{ background: "var(--accent-dark)" }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, marginRight: 8 }}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Tambah Tamu
+                      </button>
+                      <button className={styles.btn} onClick={handleExportExcel} style={{ background: "#4f46e5" }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, marginRight: 8 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                        Export Excel
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1216,7 +1440,7 @@ export default function Home() {
                 <div className={styles.panel}>
                   <div className={styles.egmsTable}>
                     <div className={styles.egmsTableHead}>
-                      <span className={styles.egmsHeadCell} onClick={() => toggleSort('no')} style={{ cursor: 'pointer' }}>No {getSortIcon('no')}</span>
+                      <span className={styles.egmsHeadCell}>No</span>
                       <span className={styles.egmsHeadCell} onClick={() => toggleSort('nama')} style={{ cursor: 'pointer' }}>Nama Tamu {getSortIcon('nama')}</span>
                       <span className={styles.egmsHeadCell} onClick={() => toggleSort('priority')} style={{ cursor: 'pointer' }}>Priority {getSortIcon('priority')}</span>
                       <span className={styles.egmsHeadCell} onClick={() => toggleSort('kategori')} style={{ cursor: 'pointer' }}>Kategori {getSortIcon('kategori')}</span>
@@ -1379,7 +1603,7 @@ export default function Home() {
                       value={newCategoryValue}
                       onChange={(e) => setNewCategoryValue(e.target.value)}
                     />
-                    <button 
+                    <button
                       className={styles.miniBtnPrimary}
                       onClick={() => {
                         if (newCategoryValue.trim()) {
@@ -1391,7 +1615,7 @@ export default function Home() {
                     >
                       Oke
                     </button>
-                    <button 
+                    <button
                       className={styles.miniBtnGhost}
                       onClick={() => setIsAddingNewCategory(false)}
                     >
@@ -1446,7 +1670,78 @@ export default function Home() {
         </div>
       )}
 
-      {/* ─── Delete Confirmation Modal ─── */}
+      {/* ─── Add Guest Modal ─── */}
+      {isAddingGuest && (
+        <div className={styles.modalOverlay} onClick={() => setIsAddingGuest(false)}>
+          <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.editModalHead}>
+              <h3 className={styles.editModalTitle}>Tambah Tamu Baru</h3>
+              <button className={styles.editModalClose} onClick={() => setIsAddingGuest(false)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+
+            <div className={styles.editModalBody}>
+              <div className={styles.editFormRow}>
+                <div className={styles.editField} style={{ flex: 3 }}>
+                  <label className={styles.editLabel}>Nama Tamu</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={newGuestData.nama}
+                    onChange={(e) => setNewGuestData({ ...newGuestData, nama: e.target.value })}
+                    placeholder="Nama tamu"
+                  />
+                </div>
+                <div className={styles.editField} style={{ flex: 2 }}>
+                  <label className={styles.editLabel}>Priority</label>
+                  <select
+                    className={styles.editInput}
+                    value={newGuestData.priority}
+                    onChange={(e) => setNewGuestData({ ...newGuestData, priority: e.target.value })}
+                  >
+                    <option value="Reguler">Reguler</option>
+                    <option value="VIP">VIP</option>
+                    <option value="VVIP">VVIP</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className={styles.editField}>
+                <label className={styles.editLabel}>Nomor WhatsApp</label>
+                <input
+                  type="text"
+                  className={styles.editInput}
+                  value={newGuestData.nomor}
+                  onChange={(e) => setNewGuestData({ ...newGuestData, nomor: e.target.value })}
+                  placeholder="0812..."
+                />
+              </div>
+
+              <div className={styles.editField}>
+                <label className={styles.editLabel}>Kategori</label>
+                <select
+                  className={styles.editInput}
+                  value={newGuestData.kategori || "-"}
+                  onChange={(e) => setNewGuestData({ ...newGuestData, kategori: e.target.value })}
+                >
+                  <option value="-">Tanpa Kategori</option>
+                  {uniqueCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className={styles.editModalFoot}>
+              <button className={styles.editCancelBtn} onClick={() => setIsAddingGuest(false)}>Batal</button>
+              <button className={styles.editSaveBtn} onClick={handleAddGuest} disabled={isSaving}>
+                {isSaving ? "Menyimpan..." : "Tambah Tamu"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {deletingContact && (
         <div className={styles.modalOverlay} onClick={() => setDeletingContact(null)}>
           <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
@@ -1541,6 +1836,16 @@ export default function Home() {
           <span>{feedback}</span>
         </div>
       )}
+      {loadingMessage && (
+        <div key={`load-${loadingMessage}`} className={styles.toastLoading}>
+          <div className={styles.toastIcon}>
+            <svg className={styles.spinner} viewBox="0 0 50 50">
+              <circle cx="25" cy="25" r="20" fill="none" strokeWidth="5"></circle>
+            </svg>
+          </div>
+          <span>{loadingMessage}</span>
+        </div>
+      )}
       {errorMessage && (
         <div key={`err-${errorMessage}`} className={styles.toastError}>
           <div className={styles.toastIcon}>!</div>
@@ -1625,7 +1930,7 @@ function ScannerView({
   useEffect(() => {
     if (!scannedContact) return;
     const isVip = scannedContact.priority === "VIP" || scannedContact.priority === "VVIP";
-    const delay = isVip ? 3000 : 1000;
+    const delay = isVip ? 5000 : 3000;
     const timer = setTimeout(() => {
       onReset();
     }, delay);

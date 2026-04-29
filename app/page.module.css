@@ -1023,6 +1023,49 @@
   line-height: 1.4;
 }
 
+.importSettings {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.importField {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.importLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.importSelect {
+  width: 100%;
+  font-family: var(--font-body), sans-serif;
+  font-size: 16px;
+  color: var(--text-primary);
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.importSelect:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.1);
+}
+
 /* ─── Divider ─── */
 .divider {
   border: none;
@@ -1031,9 +1074,11 @@
 }
 
 /* ─── Preview ─── */
-.previewSection {
-  margin-bottom: 1.5rem;
-  animation: fadeUp 0.3s ease;
+.previewLabelRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
 }
 
 .previewLabel {
@@ -1043,8 +1088,24 @@
   color: var(--accent-dark);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 6px;
   opacity: 0.7;
+}
+
+.copyBtn {
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  border: 1px solid rgba(37, 211, 102, 0.2);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.copyBtn:hover {
+  background: var(--accent);
+  color: white;
 }
 
 .previewBox {
@@ -1342,7 +1403,8 @@
 }
 
 .searchField {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-body), sans-serif;
   font-size: 16px;
   color: var(--text-primary);
@@ -1452,9 +1514,20 @@
   gap: var(--space-1);
 }
 
-@media (min-width: 480px) {
+.egmsControls .btn {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 14px;
+}
+
+@media (min-width: 640px) {
   .egmsControls {
     flex-direction: row;
+    align-items: center;
+  }
+  
+  .egmsControls .btn {
+    width: auto;
   }
 }
 
@@ -1572,7 +1645,8 @@
   }
 }
 
-.searchBtn {
+.searchBtn,
+.exportBtn {
   padding: 0 20px;
   min-height: 48px;
   background: var(--accent);
@@ -1582,7 +1656,7 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1590,8 +1664,17 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.exportBtn {
+  background: #4f46e5;
+}
+
 .searchBtn:hover {
   background: var(--accent-dark);
+}
+
+.exportBtn:hover {
+  background: #4338ca;
+  transform: translateY(-2px);
 }
 
 .statusSent,
@@ -2254,7 +2337,8 @@
 }
 
 .toastSuccess,
-.toastError {
+.toastError,
+.toastLoading {
   position: fixed;
   top: var(--space-3);
   left: 50%;
@@ -2280,6 +2364,32 @@
 
 .toastError {
   background: #ef4444;
+}
+
+.toastLoading {
+  background: #f59e0b;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  animation: rotate 2s linear infinite;
+}
+
+.spinner circle {
+  stroke: white;
+  stroke-linecap: round;
+  animation: dash 1.5s ease-in-out infinite;
+}
+
+@keyframes rotate {
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes dash {
+  0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
 }
 
 .toastIcon {
