@@ -415,16 +415,8 @@ export default function Home() {
   const handleLoadContacts = async (force: boolean = false) => {
     if (!session) return;
 
-    // Jika baru saja diupdate (kurang dari 5 detik), lewati
-    const lastFetched = localStorage.getItem("wa_sender_contacts_last_fetched");
-    const now = Date.now();
-    if (!force && lastFetched && now - Number(lastFetched) < 5000 && contacts.length > 0) {
-      console.log("[DEBUG] Skipping fetch, recent data exists");
-      return;
-    }
-
     try {
-      console.log("[DEBUG] Fetching contacts...");
+      console.log("[DEBUG] Fetching contacts (force=" + force + ")...");
       if (contacts.length === 0) setIsFetching(true);
       
       const response = await fetch("/api/contacts", {
@@ -436,8 +428,12 @@ export default function Home() {
         const freshContacts = Array.isArray(data.contacts) ? data.contacts : [];
         setContacts(freshContacts);
         setSentNomors(freshContacts.filter((c: Contact) => c.is_sent).map((c: Contact) => c.nomor));
-        localStorage.setItem("wa_sender_contacts_last_fetched", Date.now().toString());
-        localStorage.setItem("wa_sender_contacts", JSON.stringify(freshContacts));
+        
+        // Simpan ke localStorage di latar belakang (non-blocking)
+        setTimeout(() => {
+          localStorage.setItem("wa_sender_contacts", JSON.stringify(freshContacts));
+          localStorage.setItem("wa_sender_contacts_last_fetched", Date.now().toString());
+        }, 0);
       }
     } catch (err) {
       console.error("Load Error:", err);
@@ -563,9 +559,25 @@ export default function Home() {
           table: "contacts",
           filter: tenantFilter
         },
-        () => {
-          // Setiap ada perubahan (INSERT/UPDATE/DELETE), ambil data terbaru (paksa fetch)
-          handleLoadContacts(true);
+        (payload) => {
+          console.log("[DEBUG] Realtime change detected:", payload.eventType);
+          
+          if (payload.eventType === "UPDATE" && payload.new) {
+            const updatedContact = payload.new as Contact;
+            setContacts(prev => prev.map(c => c.id === updatedContact.id ? { ...c, ...updatedContact } : c));
+          } else if (payload.eventType === "INSERT" && payload.new) {
+            const newContact = payload.new as Contact;
+            setContacts(prev => {
+              if (prev.some(c => c.id === newContact.id)) return prev;
+              return [newContact, ...prev];
+            });
+          } else if (payload.eventType === "DELETE" && payload.old) {
+            const oldId = payload.old.id;
+            setContacts(prev => prev.filter(c => c.id !== oldId));
+          } else {
+            // Jika perubahan kompleks (misal bulk), baru ambil data terbaru
+            handleLoadContacts(true);
+          }
         }
       )
       .subscribe();
