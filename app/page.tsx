@@ -12,7 +12,8 @@ type Contact = {
   nama: string;
   nomor: string;
   created_at: string;
-  is_vip: boolean;
+  priority: string;
+  kategori: string;
   is_sent: boolean;
   is_present: boolean;
   present_at: string | null;
@@ -35,7 +36,7 @@ const sanitizeNomor = (value: string) => {
 
 const parseBulkInput = (bulkInput: string) => {
   const lines = bulkInput.split("\n");
-  const validContacts: { nama: string; nomor: string }[] = [];
+  const validContacts: { nama: string; nomor: string; priority: string; kategori: string }[] = [];
   const invalidLines: string[] = [];
 
   for (const rawLine of lines) {
@@ -50,13 +51,15 @@ const parseBulkInput = (bulkInput: string) => {
 
     const nama = parts[0]?.trim() ?? "";
     const nomor = sanitizeNomor(parts[1]?.trim() ?? "");
+    const priority = parts[2]?.trim() || "Reguler";
+    const kategori = parts[3]?.trim() || "-";
 
     if (!nama || !nomor) {
       invalidLines.push(rawLine);
       continue;
     }
 
-    validContacts.push({ nama, nomor });
+    validContacts.push({ nama, nomor, priority, kategori });
   }
 
   return { validContacts, invalidLines };
@@ -134,6 +137,8 @@ export default function Home() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [includeToken, setIncludeToken] = useState(() => initialLocal("wa_sender_include_token", "true") === "true");
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [isAddingNewCategory, setIsAddingNewCategory] = useState(false);
+  const [newCategoryValue, setNewCategoryValue] = useState("");
   const [initialEditingContact, setInitialEditingContact] = useState<string | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
@@ -205,7 +210,8 @@ export default function Home() {
             id: updated.id,
             nama: updated.nama,
             nomor: updated.nomor,
-            is_vip: updated.is_vip,
+            priority: updated.priority,
+            kategori: updated.kategori,
             is_sent: updated.is_sent,
             is_present: updated.is_present,
             present_at: updated.present_at,
@@ -276,7 +282,8 @@ export default function Home() {
         playSound("error");
         setErrorMessage(`GAGAL: ${contact.nama} sudah melakukan check-in sebelumnya!`);
       } else {
-        playSound(contact.is_vip ? "vip" : "success");
+        const isVip = contact.priority === "VIP" || contact.priority === "VVIP";
+        playSound(isVip ? "vip" : "success");
         const now = new Date().toISOString();
         const updated = { ...contact, is_present: true, present_at: now };
 
@@ -602,7 +609,11 @@ export default function Home() {
     const total = contacts.length;
     const sent = contacts.filter(c => c.is_sent || sentNomors.includes(c.nomor)).length;
     const present = contacts.filter(c => c.is_present).length;
-    const vipPresent = contacts.filter(c => c.is_vip && c.is_present).length;
+    
+    const vips = contacts.filter(c => c.priority === "VIP" || c.priority === "VVIP");
+    const totalVip = vips.length;
+    const vipPresent = vips.filter(c => c.is_present).length;
+    
     const pending = total - sent;
     const attendanceRate = sent > 0 ? (present / sent) * 100 : 0;
     const deliveryRate = total > 0 ? (sent / total) * 100 : 0;
@@ -610,31 +621,39 @@ export default function Home() {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const addedToday = contacts.filter(c => new Date(c.created_at).getTime() >= todayStart.getTime()).length;
+    const todayCheckin = contacts.filter(c => c.is_present && c.present_at && new Date(c.present_at).getTime() >= todayStart.getTime()).length;
 
-    const totalVip = contacts.filter(c => c.is_vip).length;
     const vipAttendanceRate = totalVip > 0 ? (vipPresent / totalVip) * 100 : 0;
 
-    const todayCheckin = contacts.filter(c =>
-      c.is_present && c.present_at && new Date(c.present_at).getTime() >= todayStart.getTime()
-    ).length;
+    const deliveryStatus = deliveryRate >= 95 ? "Lengkap" : "Berjalan";
+    const attendanceStatus = attendanceRate > 70 ? "Sangat Baik" : "Stabil";
+    const vipStatus = vipAttendanceRate > 80 ? "Sempurna" : "Pantau VIP";
 
-    // Analytics
-    const deliveryStatus = deliveryRate > 90 ? "Lengkap" : deliveryRate > 50 ? "Berjalan" : "Awal";
-    const attendanceStatus = attendanceRate > 70 ? "Sangat Baik" : attendanceRate > 30 ? "Stabil" : "Rendah";
-    const vipStatus = vipAttendanceRate > 80 ? "Prioritas Aman" : "Pantau VIP";
-
-    const recentActivity = contacts
-      .filter(c => c.is_present && c.present_at)
-      .sort((a, b) => new Date(b.present_at!).getTime() - new Date(a.present_at!).getTime())
+    const recentActivity = [...contacts]
+      .filter(c => c.is_present)
+      .sort((a, b) => {
+        const timeA = a.present_at ? new Date(a.present_at).getTime() : 0;
+        const timeB = b.present_at ? new Date(b.present_at).getTime() : 0;
+        return timeB - timeA;
+      })
       .slice(0, 5);
 
     return {
-      total, sent, present, vipPresent, pending,
-      attendanceRate, deliveryRate, recentActivity,
+      total, sent, present, vipPresent, pending, 
+      attendanceRate, deliveryRate, recentActivity, 
       addedToday, vipAttendanceRate, totalVip, todayCheckin,
       deliveryStatus, attendanceStatus, vipStatus
     };
   }, [contacts, sentNomors]);
+
+  // Dapatkan daftar kategori unik untuk saran (datalist)
+  const uniqueCategories = useMemo(() => {
+    const cats = contacts
+      .map(c => c.kategori)
+      .filter(k => k && k !== "-")
+      .map(k => k.trim());
+    return Array.from(new Set(cats)).sort();
+  }, [contacts]);
 
   const getSortIcon = (key: keyof Contact | 'no') => {
     if (sortConfig.key !== key) return "↕";
@@ -976,7 +995,9 @@ export default function Home() {
                               <div className={styles.activityName}>{activity.nama}</div>
                               <div className={styles.activityTime}>Check-in: {activity.present_at ? new Date(activity.present_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-"}</div>
                             </div>
-                            {activity.is_vip && <span className={styles.activityBadge}>VIP</span>}
+                            {(activity.priority === "VIP" || activity.priority === "VVIP") && (
+                              <span className={styles.activityBadge}>{activity.priority}</span>
+                            )}
                           </div>
                         ))
                       ) : (
@@ -1025,7 +1046,7 @@ export default function Home() {
                       value={bulkInput}
                       onChange={(e) => setBulkInput(e.target.value)}
                     />
-                    <div className={styles.hint}>Format: Nama, Nomor HP (satu baris per kontak).</div>
+                    <div className={styles.hint}>Format: <strong>Nama, Nomor, Priority, Kategori</strong> (Satu baris per tamu).</div>
                     <button
                       className={styles.btn}
                       style={{ marginTop: "12px" }}
@@ -1197,7 +1218,8 @@ export default function Home() {
                     <div className={styles.egmsTableHead}>
                       <span className={styles.egmsHeadCell} onClick={() => toggleSort('no')} style={{ cursor: 'pointer' }}>No {getSortIcon('no')}</span>
                       <span className={styles.egmsHeadCell} onClick={() => toggleSort('nama')} style={{ cursor: 'pointer' }}>Nama Tamu {getSortIcon('nama')}</span>
-                      <span className={styles.egmsHeadCell} onClick={() => toggleSort('is_vip')} style={{ cursor: 'pointer' }}>Jenis {getSortIcon('is_vip')}</span>
+                      <span className={styles.egmsHeadCell} onClick={() => toggleSort('priority')} style={{ cursor: 'pointer' }}>Priority {getSortIcon('priority')}</span>
+                      <span className={styles.egmsHeadCell} onClick={() => toggleSort('kategori')} style={{ cursor: 'pointer' }}>Kategori {getSortIcon('kategori')}</span>
                       <span className={styles.egmsHeadCell} onClick={() => toggleSort('is_present')} style={{ cursor: 'pointer' }}>Status {getSortIcon('is_present')}</span>
                       <span className={styles.egmsHeadCell}>Action</span>
                     </div>
@@ -1212,7 +1234,14 @@ export default function Home() {
                         <div key={contact.id} className={styles.egmsRow}>
                           <span className={styles.egmsCell}>{index + 1}</span>
                           <div className={styles.egmsCellStrong}>{contact.nama}</div>
-                          <div className={styles.egmsCell}>{contact.is_vip && <span className={styles.vipBadge}>VIP</span>}</div>
+                          <div className={styles.egmsCell}>
+                            <span className={`${styles.priorityBadge} ${styles['prio' + contact.priority]}`}>
+                              {contact.priority}
+                            </span>
+                          </div>
+                          <div className={styles.egmsCell}>
+                            <span className={styles.categoryBadge}>{contact.kategori || "-"}</span>
+                          </div>
                           <div className={styles.egmsCell}>
                             {contact.is_present ? <span className={styles.statusHadir}>Hadir</span> : isSent ? <span className={styles.statusSent}>Terkirim</span> : <span className={styles.statusPending}>Belum</span>}
                           </div>
@@ -1291,28 +1320,85 @@ export default function Home() {
 
             {/* Body */}
             <div className={styles.editModalBody}>
-              {/* Name field */}
-              <div className={styles.editField}>
-                <label className={styles.editLabel}>Nama Tamu</label>
-                <input
-                  type="text"
-                  className={styles.editInput}
-                  value={editingContact.nama}
-                  onChange={(e) => setEditingContact({ ...editingContact, nama: e.target.value })}
-                  placeholder="Masukkan nama tamu"
-                />
+              {/* Row: Nama & Priority */}
+              <div className={styles.editFormRow}>
+                <div className={styles.editField} style={{ flex: 3 }}>
+                  <label className={styles.editLabel}>Nama Tamu</label>
+                  <input
+                    type="text"
+                    className={styles.editInput}
+                    value={editingContact.nama}
+                    onChange={(e) => setEditingContact({ ...editingContact, nama: e.target.value })}
+                    placeholder="Nama tamu"
+                  />
+                </div>
+                <div className={styles.editField} style={{ flex: 2 }}>
+                  <label className={styles.editLabel}>Priority</label>
+                  <select
+                    className={styles.editInput}
+                    value={editingContact.priority}
+                    onChange={(e) => setEditingContact({ ...editingContact, priority: e.target.value })}
+                  >
+                    <option value="Reguler">Reguler</option>
+                    <option value="VIP">VIP</option>
+                    <option value="VVIP">VVIP</option>
+                  </select>
+                </div>
               </div>
 
-              {/* VIP Toggle Row */}
-              <div className={styles.editToggleRow}>
-                <div className={styles.editToggleInfo}>
-                  <span className={styles.editToggleTitle}>Tamu VIP</span>
-                  <span className={styles.editToggleDesc}>Tandai sebagai tamu prioritas</span>
-                </div>
-                <label className={styles.switch}>
-                  <input type="checkbox" checked={editingContact.is_vip} onChange={(e) => setEditingContact({ ...editingContact, is_vip: e.target.checked })} />
-                  <span className={styles.slider}></span>
-                </label>
+              {/* Kategori field with Dropdown + Manual Add */}
+              <div className={styles.editField}>
+                <label className={styles.editLabel}>Kategori</label>
+                {!isAddingNewCategory ? (
+                  <div className={styles.selectWithAdd}>
+                    <select
+                      className={styles.editInput}
+                      value={editingContact.kategori || "-"}
+                      onChange={(e) => {
+                        if (e.target.value === "ADD_NEW") {
+                          setIsAddingNewCategory(true);
+                        } else {
+                          setEditingContact({ ...editingContact, kategori: e.target.value });
+                        }
+                      }}
+                    >
+                      <option value="-">Tanpa Kategori</option>
+                      {uniqueCategories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                      <option value="ADD_NEW">+ Tambah Kategori Baru...</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className={styles.manualInputRow}>
+                    <input
+                      type="text"
+                      className={styles.editInput}
+                      autoFocus
+                      placeholder="Ketik kategori baru..."
+                      value={newCategoryValue}
+                      onChange={(e) => setNewCategoryValue(e.target.value)}
+                    />
+                    <button 
+                      className={styles.miniBtnPrimary}
+                      onClick={() => {
+                        if (newCategoryValue.trim()) {
+                          setEditingContact({ ...editingContact, kategori: newCategoryValue.trim() });
+                          setIsAddingNewCategory(false);
+                          setNewCategoryValue("");
+                        }
+                      }}
+                    >
+                      Oke
+                    </button>
+                    <button 
+                      className={styles.miniBtnGhost}
+                      onClick={() => setIsAddingNewCategory(false)}
+                    >
+                      Batal
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Attendance Status */}
@@ -1538,7 +1624,8 @@ function ScannerView({
   // Auto-dismiss after scan: 1s for regular, 3s for VIP
   useEffect(() => {
     if (!scannedContact) return;
-    const delay = scannedContact.is_vip ? 3000 : 1000;
+    const isVip = scannedContact.priority === "VIP" || scannedContact.priority === "VVIP";
+    const delay = isVip ? 3000 : 1000;
     const timer = setTimeout(() => {
       onReset();
     }, delay);
@@ -1559,8 +1646,8 @@ function ScannerView({
           <div className={styles.scanResultCard}>
             <div className={styles.resultCheck}>✓</div>
             <h2 className={styles.resultName}>{scannedContact.nama}</h2>
-            {scannedContact.is_vip && (
-              <div className={styles.resultVip}>TAMU VIP</div>
+            {(scannedContact.priority === "VIP" || scannedContact.priority === "VVIP") && (
+              <div className={styles.resultVip}>TAMU {scannedContact.priority}</div>
             )}
             <div className={styles.resultInfo}>
               <span className={styles.resultLabel}>Waktu Hadir</span>

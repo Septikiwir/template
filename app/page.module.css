@@ -1470,25 +1470,25 @@
 /* Table head — always visible with sort */
 .egmsTableHead {
   display: grid;
-  grid-template-columns: 36px 1fr 60px 80px 100px;
+  grid-template-columns: 36px 1fr 70px 90px 80px 100px;
   align-items: center;
   padding: 10px 12px;
   gap: 6px;
   background: #f9fafb;
   border-bottom: 1px solid #e5e7eb;
   border-radius: 12px 12px 0 0;
-  min-width: 480px;
+  min-width: 650px;
 }
 
 /* Row layout — grid on all sizes */
 .egmsRow {
   display: grid;
-  grid-template-columns: 36px 1fr 60px 80px 100px;
+  grid-template-columns: 36px 1fr 70px 90px 80px 100px;
   align-items: center;
   padding: 10px 12px;
   gap: 6px;
   border-bottom: 1px solid var(--border);
-  min-width: 480px;
+  min-width: 650px;
 }
 
 .egmsRow:last-of-type {
@@ -1556,13 +1556,13 @@
 /* Tablet+ table layout — wider columns */
 @media (min-width: 640px) {
   .egmsTableHead {
-    grid-template-columns: 40px 1fr 60px 90px 100px;
+    grid-template-columns: 40px 1fr 80px 120px 90px 100px;
     padding: 12px 14px;
     gap: 8px;
   }
 
   .egmsRow {
-    grid-template-columns: 40px 1fr 60px 90px 100px;
+    grid-template-columns: 40px 1fr 80px 120px 90px 100px;
     padding: 12px 14px;
     gap: 8px;
   }
@@ -1603,33 +1603,148 @@
   width: fit-content;
 }
 
-.statusSent {
-  background: var(--accent-light);
-  color: var(--accent-dark);
-}
-
+/* ─── Premium Badge System ─── */
+.statusHadir,
+.statusSent,
 .statusPending {
-  background: rgba(226, 75, 74, 0.1);
-  color: var(--danger);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
 }
 
 .statusHadir {
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #d1fae5;
+}
+
+.statusHadir::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  background: #10b981;
+  border-radius: 50%;
+}
+
+.statusSent {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #dbeafe;
+}
+
+.statusSent::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  background: #3b82f6;
+  border-radius: 50%;
+}
+
+.statusPending {
+  background: #fff1f2;
+  color: #e11d48;
+  border-color: #ffe4e6;
+}
+
+.statusPending::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  background: #f43f5e;
+  border-radius: 50%;
+}
+
+.priorityBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.prioReguler {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #f1f5f9;
+}
+
+.prioVIP {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fef3c7;
+}
+
+.prioVVIP {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #ffedd5;
+  box-shadow: 0 2px 4px rgba(194, 65, 12, 0.05);
+}
+
+.categoryBadge {
   display: inline-block;
-  padding: 4px 12px;
-  border-radius: 20px;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.manualInputRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.manualInputRow .editInput {
+  flex: 1;
+}
+
+.miniBtnPrimary,
+.miniBtnGhost {
+  padding: 8px 12px;
   font-size: 12px;
   font-weight: 700;
-  background: #e0e7ff;
-  color: #4338ca;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.miniBtnPrimary {
+  background: var(--accent);
+  color: white;
+  border: none;
+}
+
+.miniBtnGhost {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
 }
 
 .egmsRowEmpty {
-  padding: var(--space-2);
+  padding: 32px;
   font-size: 14px;
   color: var(--text-hint);
   text-align: center;
+  font-style: italic;
+  background: white;
+  border-radius: 0 0 12px 12px;
 }
 
 .eyeBtn {
@@ -2644,7 +2759,13 @@
   padding: 0 24px 8px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+}
+
+.editFormRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
 }
 
 .editField {
@@ -2753,7 +2874,37 @@
 .editStatusUndo {
   background: none;
   border: 1px solid rgba(37, 211, 102, 0.3);
-   transition: all 0.2s;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.editStatusUndo:hover {
+  background: var(--accent-light);
+}
+
+.editCheckInBtn {
+  width: 100%;
+  padding: 14px;
+  min-height: 48px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.2);
+  transition: all 0.2s;
 }
 
 .editCheckInBtn:hover {

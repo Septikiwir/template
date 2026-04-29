@@ -7,7 +7,8 @@ type IncomingContact = {
   id?: unknown;
   nama?: unknown;
   nomor?: unknown;
-  is_vip?: unknown;
+  priority?: unknown;
+  kategori?: unknown;
   is_sent?: unknown;
   is_present?: unknown;
   present_at?: unknown;
@@ -36,7 +37,11 @@ function normalizeContact(contact: IncomingContact) {
   const nomorRaw = contact.nomor != null ? String(contact.nomor).trim() : "";
   const nomor = sanitizeNomor(nomorRaw);
   const id = typeof contact.id === "number" ? contact.id : undefined;
-  const is_vip = typeof contact.is_vip === "boolean" ? contact.is_vip : false;
+  
+  // New fields
+  const priority = typeof contact.priority === "string" ? contact.priority : "Reguler";
+  const kategori = typeof contact.kategori === "string" ? contact.kategori : "-";
+  
   const is_sent = typeof contact.is_sent === "boolean" ? contact.is_sent : false;
   const is_present = typeof contact.is_present === "boolean" ? contact.is_present : false;
   const present_at =
@@ -51,7 +56,7 @@ function normalizeContact(contact: IncomingContact) {
     return null;
   }
 
-  const result: any = { nama, nomor, is_vip, is_sent, is_present, token };
+  const result: any = { nama, nomor, priority, kategori, is_sent, is_present, token };
   if (present_at !== undefined) {
     result.present_at = present_at;
   }
@@ -95,7 +100,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from("contacts")
-      .select("id, nama, nomor, created_at, is_vip, is_sent, is_present, present_at, token")
+      .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -214,7 +219,7 @@ export async function POST(request: Request) {
       // Jika check-in berhasil, refetch dan return
       const { data, error: selectError } = await supabase
         .from("contacts")
-        .select("id, nama, nomor, created_at, is_vip, is_sent, is_present, present_at, token")
+        .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token")
         .order("created_at", { ascending: false });
 
       if (selectError) throw selectError;
@@ -250,7 +255,7 @@ export async function POST(request: Request) {
 
     const { data, error: selectError } = await supabase
       .from("contacts")
-      .select("id, nama, nomor, created_at, is_vip, is_sent, is_present, present_at, token")
+      .select("id, nama, nomor, created_at, priority, kategori, is_sent, is_present, present_at, token")
       .order("created_at", { ascending: false });
 
     if (selectError) {
