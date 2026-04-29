@@ -460,12 +460,15 @@
 @media (min-width: 768px) {
   .mainContent {
     padding: var(--space-3);
+    /* Ensure bottom content isn't hidden behind bottomNav on tablets */
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
 }
 
 @media (min-width: 1024px) {
   .mainContent {
     padding: var(--space-3) var(--space-4);
+    /* Reset bottom padding on desktop because bottomNav is hidden */
     padding-bottom: var(--space-3);
   }
 }

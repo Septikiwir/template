@@ -117,7 +117,7 @@ const initialLocal = (key: string, fallback: string = "") => {
 // Helper untuk mendapatkan warna kategori berdasarkan nama (hashing)
 const getCategoryColor = (category: string) => {
   if (!category || category === "-") return { bg: "#f3f4f6", text: "#4b5563" };
-  
+
   const colors = [
     { bg: "#e0f2fe", text: "#0369a1" }, // Blue
     { bg: "#dcfce7", text: "#15803d" }, // Green
@@ -832,7 +832,7 @@ export default function Home() {
       const group = contacts.filter(c => (c.kategori || "-") === cat);
       const totalInGroup = group.length;
       const presentInGroup = group.filter(c => c.is_present).length;
-      return { label: cat === "-" ? "Tanpa Kategori" : cat, total: totalInGroup, present: presentInGroup };
+      return { label: cat === "-" ? "Lainnya" : cat, total: totalInGroup, present: presentInGroup };
     });
 
     return {
@@ -1042,38 +1042,30 @@ export default function Home() {
                       <div className={`${styles.pStatIcon} ${styles.pIconBlue}`}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
                       </div>
-                      <span className={styles.pStatTrend}>+{dashboardStats.addedToday} Baru</span>
+                      <span className={styles.pStatTrend} style={{ background: "#EBF2FF", color: "#3B82F6" }}>+{dashboardStats.addedToday} Baru</span>
                     </div>
                     <div className={styles.pStatBody}>
                       <div className={styles.panelTitle}>Total Tamu</div>
                       <div className={styles.pStatValue}>{dashboardStats.total}</div>
-                      <div className={styles.pStatFooter}>
-                        <span className={styles.pStatDot} style={{ background: "#3b82f6" }}></span>
-                        Aktif di sistem
-                      </div>
                     </div>
                   </div>
 
-                  {/* Card 2: Undangan */}
+                  {/* Card 2: Ambil Souvenir */}
                   <div className={styles.premiumStatCard}>
                     <div className={styles.pStatHeader}>
                       <div className={`${styles.pStatIcon} ${styles.pIconGreen}`}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polyline points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12v10H4V12" /><path d="M2 7h20v5H2z" /><path d="M12 22V7" /><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" /><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" /></svg>
                       </div>
                       <span className={styles.pStatTrend} style={{
-                        background: dashboardStats.deliveryStatus === "Lengkap" ? "#dcfce7" : "#fff7ed",
-                        color: dashboardStats.deliveryStatus === "Lengkap" ? "#16a34a" : "#ea580c"
+                        background: "#dcfce7",
+                        color: "#16a34a"
                       }}>
-                        {dashboardStats.deliveryStatus}
+                        Terdistribusi
                       </span>
                     </div>
                     <div className={styles.pStatBody}>
-                      <div className={styles.panelTitle}>Undangan</div>
-                      <div className={styles.pStatValue}>{dashboardStats.sent}</div>
-                      <div className={styles.pStatFooter}>
-                        <span className={styles.pStatDot} style={{ background: "#16a34a" }}></span>
-                        /{dashboardStats.total} Tamu terkirim.
-                      </div>
+                      <div className={styles.panelTitle}>Souvenir Tamu</div>
+                      <div className={styles.pStatValue}>{dashboardStats.present}</div>
                     </div>
                   </div>
 
@@ -1087,16 +1079,12 @@ export default function Home() {
                         background: "#e0e7ff",
                         color: "#4338ca"
                       }}>
-                        MANUAL
+                        +{dashboardStats.todayManual} Hari ini
                       </span>
                     </div>
                     <div className={styles.pStatBody}>
                       <div className={styles.panelTitle}>Tamu Tambahan</div>
                       <div className={styles.pStatValue}>{dashboardStats.manualCount}</div>
-                      <div className={styles.pStatFooter}>
-                        <span className={styles.pStatDot} style={{ background: "#4f46e5" }}></span>
-                        +{dashboardStats.todayManual} Hari ini
-                      </div>
                     </div>
                   </div>
 
@@ -1110,16 +1098,12 @@ export default function Home() {
                         background: "#fef3c7",
                         color: "#b45309"
                       }}>
-                        {dashboardStats.vipStatus}
+                        {dashboardStats.vipPresent} Hadir
                       </span>
                     </div>
                     <div className={styles.pStatBody}>
-                      <div className={styles.panelTitle}>Prioritas VIP</div>
-                      <div className={styles.pStatValue}>{dashboardStats.vipPresent}</div>
-                      <div className={styles.pStatFooter}>
-                        <span className={styles.pStatDot} style={{ background: "#d97706" }}></span>
-                        {Math.round(dashboardStats.vipAttendanceRate)}% Kehadiran
-                      </div>
+                      <div className={styles.panelTitle}>Tamu Prioritas</div>
+                      <div className={styles.pStatValue}>{dashboardStats.totalVip}</div>
                     </div>
                   </div>
                 </div>
@@ -1209,23 +1193,31 @@ export default function Home() {
                 <div className={styles.dashboardSection}>
                   <h3 className={styles.pageTitle}>By Kategori</h3>
                   <div className={styles.progressGrid}>
-                    {dashboardStats.statsByCategory.map(stat => (
-                      <div key={stat.label} className={styles.progressCard}>
-                        <div className={styles.progressDetail} style={{ padding: 0, marginBottom: 12 }}>
-                          <div className={styles.panelTitle}>{stat.label}</div>
-                          <div className={styles.progressCount}>
-                            <span className={styles.activityName}>{stat.present}</span>
-                            <span className={styles.activityTime}>/ {stat.total} tamu</span>
+                    {dashboardStats.statsByCategory.map(stat => {
+                      const catValue = stat.label === "Lainnya" ? "-" : stat.label;
+                      const colors = getCategoryColor(catValue);
+                      return (
+                        <div key={stat.label} className={styles.progressCard}>
+                          <div className={styles.progressDetail} style={{ padding: 0, marginBottom: 12 }}>
+                            <div className={styles.panelTitle}>{stat.label}</div>
+                            <div className={styles.progressCount}>
+                              <span className={styles.activityName}>{stat.present}</span>
+                              <span className={styles.activityTime}>/ {stat.total} tamu</span>
+                            </div>
+                          </div>
+                          <div className={styles.progressBarBg} style={{ backgroundColor: "rgba(0,0,0,0.06)" }}>
+                            <div
+                              className={styles.progressBarFill}
+                              style={{
+                                width: `${stat.total > 0 ? (stat.present / stat.total) * 100 : 0}%`,
+                                background: `linear-gradient(90deg, ${colors.text}, ${colors.text}bb)`,
+                                boxShadow: `0 2px 6px ${colors.text}33`
+                              }}
+                            />
                           </div>
                         </div>
-                        <div className={styles.progressBarBg}>
-                          <div
-                            className={styles.progressBarFill}
-                            style={{ width: `${stat.total > 0 ? (stat.present / stat.total) * 100 : 0}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1543,7 +1535,7 @@ export default function Home() {
                             {(() => {
                               const colors = getCategoryColor(contact.kategori);
                               return (
-                                <span 
+                                <span
                                   className={styles.categoryBadge}
                                   style={{ backgroundColor: colors.bg, color: colors.text, border: "none" }}
                                 >
