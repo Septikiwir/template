@@ -138,6 +138,10 @@ export default function Home() {
   const [includeToken, setIncludeToken] = useState(() => initialLocal("wa_sender_include_token", "true") === "true");
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [isAddingGuest, setIsAddingGuest] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityRowsPerPage, setActivityRowsPerPage] = useState(5);
   const [newGuestData, setNewGuestData] = useState({ nama: "", nomor: "", priority: "Reguler", kategori: "-" });
   const [isAddingNewCategory, setIsAddingNewCategory] = useState(false);
   const [newCategoryValue, setNewCategoryValue] = useState("");
@@ -708,7 +712,6 @@ export default function Home() {
     const keyword = guestbookQuery.trim().toLowerCase();
     let processed = [...guestbookBaseList];
 
-    // Tahap 2: Saring berdasarkan pencarian jika ada kata kunci
     if (keyword) {
       processed = processed.filter((contact) => {
         const byName = contact.nama.toLowerCase().includes(keyword);
@@ -717,26 +720,29 @@ export default function Home() {
       });
     }
 
-    // Tahap 3: Pengurutan (Sorting)
     return processed.sort((a, b) => {
-      if (sortConfig.key === 'no') return 0; // Biarkan nomor urut tetap
-
+      if (sortConfig.key === 'no') return 0;
       let valA = a[sortConfig.key as keyof Contact];
       let valB = b[sortConfig.key as keyof Contact];
-
-      // Penanganan khusus untuk string
       if (typeof valA === 'string' && typeof valB === 'string') {
-        return sortConfig.direction === 'asc'
-          ? valA.localeCompare(valB)
-          : valB.localeCompare(valA);
+        return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
       }
-
-      // Penanganan untuk boolean atau number
       if (valA! < valB!) return sortConfig.direction === 'asc' ? -1 : 1;
       if (valA! > valB!) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
   }, [guestbookBaseList, guestbookQuery, sortConfig]);
+  
+  const paginatedGuests = useMemo(() => {
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    return filteredGuestbook.slice(startIndex, startIndex + rowsPerPage);
+  }, [filteredGuestbook, currentPage, rowsPerPage]);
+
+  const totalPages = Math.ceil(filteredGuestbook.length / rowsPerPage);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [guestbookQuery, rowsPerPage]);
 
   const toggleSort = (key: keyof Contact | 'no') => {
     setSortConfig(prev => ({
@@ -782,8 +788,7 @@ export default function Home() {
         const timeA = a.present_at ? new Date(a.present_at).getTime() : 0;
         const timeB = b.present_at ? new Date(b.present_at).getTime() : 0;
         return timeB - timeA;
-      })
-      .slice(0, 5);
+      });
 
     return {
       total, sent, present, vipPresent, pending,
@@ -793,6 +798,13 @@ export default function Home() {
       manualCount, todayManual
     };
   }, [contacts, sentNomors]);
+
+  const paginatedActivity = useMemo(() => {
+    const startIndex = (activityPage - 1) * activityRowsPerPage;
+    return dashboardStats.recentActivity.slice(startIndex, startIndex + activityRowsPerPage);
+  }, [dashboardStats.recentActivity, activityPage, activityRowsPerPage]);
+
+  const activityTotalPages = Math.ceil(dashboardStats.recentActivity.length / activityRowsPerPage);
 
   // Dapatkan daftar kategori unik untuk saran (datalist)
   const uniqueCategories = useMemo(() => {
@@ -1126,34 +1138,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className={styles.panel}>
-                  <div className={styles.panelHeader}>
-                    <span className={styles.panelTitle}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}><path d="M12 20v-6M6 20V10M18 20V4" /></svg>
-                      Riwayat Kehadiran Tamu
-                    </span>
-                  </div>
-                  <div className={styles.panelBody}>
-                    <div className={styles.activityList}>
-                      {dashboardStats.recentActivity.length > 0 ? (
-                        dashboardStats.recentActivity.map(activity => (
-                          <div key={activity.id} className={styles.activityItem} style={{ border: "none", padding: "8px 0", background: "none", borderBottom: "1px solid var(--border)", borderRadius: 0 }}>
-                            <div className={styles.activityAvatar}>{activity.nama.charAt(0)}</div>
-                            <div className={styles.activityContent}>
-                              <div className={styles.activityName}>{activity.nama}</div>
-                              <div className={styles.activityTime}>Check-in: {activity.present_at ? new Date(activity.present_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-"}</div>
-                            </div>
-                            {(activity.priority === "VIP" || activity.priority === "VVIP") && (
-                              <span className={styles.activityBadge}>{activity.priority}</span>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <div className={styles.emptyActivity}>Belum ada tamu yang hadir hari ini.</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
 
               </div>
             ) : activeView === "send" ? (
@@ -1452,11 +1436,12 @@ export default function Home() {
                       <div className={styles.egmsRowEmpty}>Belum ada tamu. Klik Search atau simpan data dari tab Send.</div>
                     )}
 
-                    {filteredGuestbook.map((contact, index) => {
+                    {paginatedGuests.map((contact, index) => {
                       const isSent = contact.is_sent || sentNomors.includes(contact.nomor);
+                      const globalIndex = (currentPage - 1) * rowsPerPage + index + 1;
                       return (
                         <div key={contact.id} className={styles.egmsRow}>
-                          <span className={styles.egmsCell}>{index + 1}</span>
+                          <span className={styles.egmsCell}>{globalIndex}</span>
                           <div className={styles.egmsCellStrong}>{contact.nama}</div>
                           <div className={styles.egmsCell}>
                             <span className={`${styles.priorityBadge} ${styles['prio' + contact.priority]}`}>
@@ -1489,14 +1474,158 @@ export default function Home() {
                       <div className={styles.egmsRowEmpty}>Memuat data buku tamu...</div>
                     )}
                   </div>
+
+                  {/* Pagination Component */}
+                  {filteredGuestbook.length > 0 && (
+                    <div className={styles.paginationContainer}>
+                      <div className={styles.paginationInfo}>
+                        Menampilkan <strong>{Math.min((currentPage - 1) * rowsPerPage + 1, filteredGuestbook.length)}</strong> – <strong>{Math.min(currentPage * rowsPerPage, filteredGuestbook.length)}</strong> dari <strong>{filteredGuestbook.length}</strong> tamu
+                      </div>
+
+                      <div className={styles.paginationRight}>
+                        <div className={styles.rowsSelector}>
+                          <span>Baris:</span>
+                          <select value={rowsPerPage} onChange={(e) => setRowsPerPage(Number(e.target.value))}>
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                          </select>
+                        </div>
+
+                        <div className={styles.paginationNav}>
+                          <button
+                            className={styles.pageNavBtn}
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(prev => prev - 1)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><polyline points="15 18 9 12 15 6" /></svg>
+                          </button>
+
+                          {Array.from({ length: totalPages }, (_, i) => i + 1)
+                            .filter(p => p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1))
+                            .map((p, i, arr) => {
+                              const items = [];
+                              if (i > 0 && p !== arr[i - 1] + 1) {
+                                items.push(<span key={`ell-${p}`} className={styles.pageEllipsis}>...</span>);
+                              }
+                              items.push(
+                                <button
+                                  key={p}
+                                  className={`${styles.pageNumber} ${currentPage === p ? styles.pageActive : ""}`}
+                                  onClick={() => setCurrentPage(p)}
+                                >
+                                  {p}
+                                </button>
+                              );
+                              return items;
+                            })}
+
+                          <button
+                            className={styles.pageNavBtn}
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage(prev => prev + 1)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><polyline points="9 18 15 12 9 6" /></svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
-              <ScannerView
-                onScanSuccess={handleScanSuccess}
-                scannedContact={scannedContact}
-                onReset={() => setScannedContact(null)}
-              />
+              <>
+                <ScannerView
+                  onScanSuccess={handleScanSuccess}
+                  scannedContact={scannedContact}
+                  onReset={() => setScannedContact(null)}
+                />
+
+                <div className={styles.panel} style={{ marginTop: "var(--space-2)" }}>
+                  <div className={styles.panelHeader}>
+                    <span className={styles.panelTitle}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}><path d="M12 20v-6M6 20V10M18 20V4" /></svg>
+                      Riwayat Kehadiran Tamu
+                    </span>
+                  </div>
+                  <div className={styles.panelBody}>
+                    <div className={styles.activityList}>
+                      {paginatedActivity.length > 0 ? (
+                        paginatedActivity.map(activity => (
+                          <div key={activity.id} className={styles.activityItem}>
+                            <div className={styles.activityAvatar}>
+                              {activity.nama.charAt(0).toUpperCase()}
+                            </div>
+                            <div className={styles.activityContent}>
+                              <div className={styles.activityTop}>
+                                <span className={styles.activityName}>{activity.nama}</span>
+                                {(activity.priority === "VIP" || activity.priority === "VVIP") && (
+                                  <span className={`${styles.prioBadgeSmall} ${activity.priority === "VVIP" ? styles.prioVVIP : styles.prioVIP}`}>
+                                    {activity.priority}
+                                  </span>
+                                )}
+                              </div>
+                              <div className={styles.activityBottom}>
+                                <svg className={styles.activityIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                <span className={styles.activityTime}>
+                                  Hadir jam {activity.present_at ? new Date(activity.present_at).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className={styles.emptyActivity}>Belum ada tamu yang hadir hari ini.</div>
+                      )}
+                    </div>
+
+                    {/* Activity Pagination */}
+                    {dashboardStats.recentActivity.length > activityRowsPerPage && (
+                      <div className={styles.paginationContainer} style={{ border: "none", padding: "16px 0 0" }}>
+                        <div className={styles.paginationInfo}>
+                          <strong>{Math.min((activityPage - 1) * activityRowsPerPage + 1, dashboardStats.recentActivity.length)}</strong> – <strong>{Math.min(activityPage * activityRowsPerPage, dashboardStats.recentActivity.length)}</strong> dari <strong>{dashboardStats.recentActivity.length}</strong>
+                        </div>
+                        <div className={styles.paginationNav}>
+                          <button
+                            className={styles.pageNavBtn}
+                            disabled={activityPage === 1}
+                            onClick={() => setActivityPage(prev => prev - 1)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><polyline points="15 18 9 12 15 6" /></svg>
+                          </button>
+                          
+                          {Array.from({ length: activityTotalPages }, (_, i) => i + 1)
+                            .filter(p => p === 1 || p === activityTotalPages || (p >= activityPage - 1 && p <= activityPage + 1))
+                            .map((p, i, arr) => {
+                              const items = [];
+                              if (i > 0 && p !== arr[i - 1] + 1) {
+                                items.push(<span key={`ell-${p}`} className={styles.pageEllipsis}>...</span>);
+                              }
+                              items.push(
+                                <button
+                                  key={p}
+                                  className={`${styles.pageNumber} ${activityPage === p ? styles.pageActive : ""}`}
+                                  onClick={() => setActivityPage(p)}
+                                >
+                                  {p}
+                                </button>
+                              );
+                              return items;
+                            })}
+
+                          <button
+                            className={styles.pageNavBtn}
+                            disabled={activityPage === activityTotalPages}
+                            onClick={() => setActivityPage(prev => prev + 1)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><polyline points="9 18 15 12 9 6" /></svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </main>
