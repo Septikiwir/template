@@ -2312,6 +2312,8 @@ function ScannerView({
   onScanSuccessRef.current = onScanSuccess;
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isCameraEnabled, setIsCameraEnabled] = useState(true);
+  const [isVisible, setIsVisible] = useState(true);
 
   const toggleCamera = () => {
     setFacingMode(prev => (prev === "environment" ? "user" : "environment"));
@@ -2321,8 +2323,18 @@ function ScannerView({
     setIsMaximized(!isMaximized);
   };
 
+  const togglePower = () => {
+    setIsCameraEnabled(!isCameraEnabled);
+  };
+
   useEffect(() => {
-    if (scannedContact) return;
+    const handleVisibilityChange = () => setIsVisible(!document.hidden);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (scannedContact || !isCameraEnabled || !isVisible) return;
 
     let cancelled = false;
     const startDelay = setTimeout(() => {
@@ -2334,7 +2346,6 @@ function ScannerView({
         fps: 20,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
           const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          // Increase scan area ratio from 0.65 to 0.8 for better reach
           const size = Math.floor(minEdge * 0.8);
           return { width: size, height: size };
         },
@@ -2358,13 +2369,19 @@ function ScannerView({
       if (scanner) {
         try {
           if (scanner.getState && scanner.getState() !== 1) {
-            scanner.stop().then(() => scanner.clear()).catch(() => { });
+            scanner.stop()
+              .then(() => {
+                try { scanner.clear(); } catch { }
+              })
+              .catch(() => { });
+          } else {
+            try { scanner.clear(); } catch { }
           }
         } catch { }
       }
       scannerRef.current = null;
     };
-  }, [scannedContact, facingMode]);
+  }, [scannedContact, facingMode, isCameraEnabled, isVisible]);
 
   // Auto-dismiss after scan: 1s for regular, 3s for VIP
   useEffect(() => {
@@ -2410,9 +2427,20 @@ function ScannerView({
           <div className={styles.readerWrapper}>
             <div className={styles.scannerActions}>
               <button
+                className={`${styles.scannerActionBtn} ${!isCameraEnabled ? styles.scannerActionBtnOff : ""}`}
+                onClick={togglePower}
+                title={isCameraEnabled ? "Matikan Kamera" : "Aktifkan Kamera"}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                  <line x1="12" y1="2" x2="12" y2="12" />
+                </svg>
+              </button>
+              <button
                 className={styles.scannerActionBtn}
                 onClick={toggleCamera}
                 title="Ganti Kamera"
+                disabled={!isCameraEnabled}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
@@ -2439,11 +2467,24 @@ function ScannerView({
             </div>
             <div
               id="reader"
-              className={`${styles.reader} ${facingMode === "user" ? styles.readerMirrored : ""}`}
+              className={`${styles.reader} ${facingMode === "user" ? styles.readerMirrored : ""} ${!isCameraEnabled ? styles.readerDisabled : ""}`}
             ></div>
+            {!isCameraEnabled && (
+              <div className={styles.cameraOffPlaceholder}>
+                <div className={styles.cameraOffIcon}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 1l22 22M21 21H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3m3-3h6l2 3h4a2 2 0 0 1 2 2v9.34m-7.72-2.06a4 4 0 1 1-5.56-5.56" />
+                  </svg>
+                </div>
+                <span className={styles.cameraOffText}>Kamera Dinonaktifkan</span>
+                <button className={styles.btnMini} onClick={togglePower} style={{ marginTop: 12 }}>Aktifkan</button>
+              </div>
+            )}
+
             <div className={styles.scannerOverlayFrame}>
               <div className={styles.scannerFrameCorners}></div>
             </div>
+
           </div>
         )}
       </div>

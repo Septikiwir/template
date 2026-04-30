@@ -2045,10 +2045,65 @@
   transform: scale(1.05);
 }
 
+.scannerActionBtnOff {
+  background: rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #f87171 !important;
+}
+
+.scannerActionBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
 .scannerActionBtn svg {
   width: 22px;
   height: 22px;
 }
+
+.readerDisabled {
+  background: #0f172a !important;
+}
+
+.cameraOffPlaceholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  z-index: 5;
+}
+
+.cameraOffIcon {
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 16px;
+}
+
+.cameraOffIcon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.cameraOffText {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 15px;
+  font-weight: 600;
+}
+
 
 .cameraToggle {
   display: none;
