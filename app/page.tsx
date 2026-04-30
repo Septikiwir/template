@@ -47,23 +47,26 @@ const parseBulkInput = (bulkInput: string) => {
   const lines = bulkInput.split("\n");
   const validContacts: { nama: string; nomor: string; priority: string; kategori: string; added_via: "bulk" }[] = [];
   const invalidLines: string[] = [];
+  let counter = 0;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
 
     const parts = line.split(/[,\t;]/);
-    if (parts.length < 2) {
+    const nama = parts[0]?.trim() ?? "";
+    let nomor = parts.length >= 2 ? sanitizeNomor(parts[1]?.trim() ?? "") : "";
+
+    if (!nama) {
       invalidLines.push(rawLine);
       continue;
     }
 
-    const nama = parts[0]?.trim() ?? "";
-    const nomor = sanitizeNomor(parts[1]?.trim() ?? "");
-
-    if (!nama || !nomor) {
-      invalidLines.push(rawLine);
-      continue;
+    // Jika nomor kosong, generate unique ID (Timestamp + Counter + Random)
+    if (!nomor) {
+      const ts = Date.now().toString().slice(-8);
+      const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      nomor = `99${ts}${counter++}${rand}`;
     }
 
     validContacts.push({ nama, nomor, priority: "Reguler", kategori: "-", added_via: "bulk" });
@@ -202,6 +205,10 @@ export default function Home() {
   const [importOpen, setImportOpen] = useState(true);
   const [configOpen, setConfigOpen] = useState(true);
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(() => initialLocal("wa_sender_sidebar_minimized", "false") === "true");
+  const channelRef = useRef<any>(null);
+
+  const actualUsername = session?.user?.email?.split('@')[0] || 'tamu';
+  const computedLink = `https://nimantra.vercel.app/${actualUsername}/`;
 
   useEffect(() => {
     localStorage.setItem("wa_sender_sidebar_minimized", isSidebarMinimized.toString());
@@ -213,7 +220,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const pesanMissingNama = pesan.trim() !== "" && !pesan.includes("{nama}");
   const pesanMissingLink = pesan.trim() !== "" && !pesan.includes("{link}");
-  const templateInvalid = !pesan.trim() || !link.trim() || pesanMissingNama || pesanMissingLink;
+  const templateInvalid = !pesan.trim() || !computedLink.trim() || pesanMissingNama || pesanMissingLink;
 
   // Efek untuk membersihkan notifikasi otomatis setelah 3 detik
   useEffect(() => {
@@ -287,6 +294,15 @@ export default function Home() {
       setFeedback("Perubahan berhasil disimpan.");
       setInitialEditingContact(null);
       setEditingContact(null);
+
+      // Broadcast sync
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "sync-data",
+          payload: { type: "CONTACTS_UPDATED", sender: session?.user?.id }
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gagal menyimpan.";
       setErrorMessage(message);
@@ -317,6 +333,15 @@ export default function Home() {
       }
       setContacts(prev => prev.filter(c => c.id !== id));
       setDeletingContact(null);
+
+      // Broadcast sync
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "sync-data",
+          payload: { type: "CONTACTS_UPDATED", sender: session?.user?.id }
+        });
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Gagal menghapus.");
     }
@@ -324,13 +349,16 @@ export default function Home() {
 
   const handleAddGuest = async () => {
     if (!session) return;
-    if (!newGuestData.nama || !newGuestData.nomor) {
-      alert("Nama dan Nomor wajib diisi!");
+    if (!newGuestData.nama) {
+      alert("Nama wajib diisi!");
       return;
     }
 
     setIsSaving(true);
     try {
+      // Jika nomor kosong, generate unique ID berbasis timestamp
+      const finalNomor = newGuestData.nomor || `99${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+
       const response = await fetch("/api/contacts", {
         method: "POST",
         headers: {
@@ -340,12 +368,13 @@ export default function Home() {
         body: JSON.stringify({
           contacts: [{
             nama: newGuestData.nama,
-            nomor: newGuestData.nomor,
-            priority: newGuestData.priority,
-            kategori: newGuestData.kategori,
+            nomor: finalNomor,
+            priority: "Reguler",
+            kategori: "Manual",
             added_via: "manual",
             is_sent: true,
-            is_present: false
+            is_present: true,
+            present_at: new Date().toISOString()
           }]
         }),
       });
@@ -357,6 +386,15 @@ export default function Home() {
       setIsAddingGuest(false);
       setNewGuestData({ nama: "", nomor: "", priority: "Reguler", kategori: "-" });
       setFeedback("Tamu berhasil ditambahkan!");
+
+      // Broadcast sync ke perangkat lain
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "sync-data",
+          payload: { type: "CONTACTS_UPDATED", sender: session?.user?.id }
+        });
+      }
     } catch (err) {
       console.error(err);
       setErrorMessage("Gagal menambahkan tamu.");
@@ -418,7 +456,7 @@ export default function Home() {
     try {
       console.log("[DEBUG] Fetching contacts (force=" + force + ")...");
       if (contacts.length === 0) setIsFetching(true);
-      
+
       const response = await fetch("/api/contacts", {
         headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store"
@@ -428,7 +466,7 @@ export default function Home() {
         const freshContacts = Array.isArray(data.contacts) ? data.contacts : [];
         setContacts(freshContacts);
         setSentNomors(freshContacts.filter((c: Contact) => c.is_sent).map((c: Contact) => c.nomor));
-        
+
         // Simpan ke localStorage di latar belakang (non-blocking)
         setTimeout(() => {
           localStorage.setItem("wa_sender_contacts", JSON.stringify(freshContacts));
@@ -461,7 +499,7 @@ export default function Home() {
 
   const handleUpdateSettings = async (updates: { link?: string; pesan?: string; include_token?: boolean }) => {
     if (!session) return;
-    
+
     // Optimistic update
     if (updates.link !== undefined) setLink(updates.link);
     if (updates.pesan !== undefined) setPesan(updates.pesan);
@@ -590,12 +628,15 @@ export default function Home() {
 
     const tenantFilter = sessionInfo.tenantId
       ? `tenant_id=eq.${sessionInfo.tenantId}`
-      : `user_id=eq.${session.user.id}`;
+      : `user_id=eq.${session?.user?.id}`;
 
     // Pasang pendengar Realtime terpadu
-    const channelId = `sync:${sessionInfo.tenantId ?? session.user.id}`;
+    const channelId = `sync:${sessionInfo.tenantId ?? session?.user?.id}`;
     const channel = supabase
       .channel(channelId)
+    channelRef.current = channel;
+    
+    channel
       // 1. Listen for Broadcast events (Instant)
       .on(
         "broadcast",
@@ -603,9 +644,9 @@ export default function Home() {
         (payload) => {
           console.log("[DEBUG] Broadcast received:", payload.payload.type);
           const { type, sender } = payload.payload;
-          
+
           // Abaikan jika pengirim adalah diri sendiri (opsional)
-          if (sender === session.user.id) return;
+          if (sender === session?.user?.id) return;
 
           if (type === "CONTACTS_UPDATED") {
             handleLoadContacts(true);
@@ -769,6 +810,15 @@ export default function Home() {
       setTempImportCategory(null);
       setImportCategory("-");
 
+      // Broadcast sync
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "sync-data",
+          payload: { type: "CONTACTS_UPDATED", sender: session?.user?.id }
+        });
+      }
+
       if (invalidLines.length > 0) {
         setFeedback(
           `Berhasil simpan ${savedCount} kontak. ${invalidLines.length} baris diabaikan karena format tidak valid.`
@@ -799,48 +849,62 @@ export default function Home() {
       return;
     }
 
-    setIsSending(true);
+    try {
+      setIsSending(true);
+      const finalLink = getFinalLink(computedLink, includeToken);
 
-    const sentUpdates = contacts.map(c => ({
-      id: c.id,
-      nama: c.nama,
-      nomor: c.nomor,
-      priority: c.priority,
-      kategori: c.kategori,
-      is_sent: true,
-      token: c.token,
-      added_via: c.added_via
-    }));
+      const sentUpdates = contacts.map(c => ({
+        id: c.id,
+        nama: c.nama,
+        nomor: c.nomor,
+        priority: c.priority,
+        kategori: c.kategori,
+        is_sent: true,
+        token: c.token,
+        added_via: c.added_via
+      }));
 
-    contacts.forEach((contact, index) => {
-      const finalLink = getFinalLink(link, includeToken);
-      const msg = buildMessage(pesan, contact.nama, finalLink, contact.token);
-      const encoded = encodeURIComponent(msg);
-      const waUrl = `https://wa.me/${contact.nomor}?text=${encoded}`;
+      contacts.forEach((contact, index) => {
+        const msg = buildMessage(pesan, contact.nama, finalLink, contact.token);
+        const encoded = encodeURIComponent(msg);
+        const waUrl = `https://wa.me/${contact.nomor}?text=${encoded}`;
 
-      setTimeout(() => {
-        window.open(waUrl, "_blank");
-      }, index * 220);
-    });
-
-    // Local update
-    setContacts(prev => prev.map(c => ({ ...c, is_sent: true })));
-    setSentNomors(contacts.map((contact) => contact.nomor));
-
-    // Persist to DB
-    if (session) {
-      fetch("/api/contacts", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ contacts: sentUpdates }),
+        setTimeout(() => {
+          window.open(waUrl, "_blank");
+        }, index * 220);
       });
-    }
 
-    setFeedback(`Membuka ${contacts.length} chat WhatsApp. Pastikan browser mengizinkan pop-up.`);
-    setTimeout(() => setIsSending(false), contacts.length * 220 + 300);
+      // Local update
+      setContacts(prev => prev.map(c => ({ ...c, is_sent: true })));
+      setSentNomors(contacts.map((contact) => contact.nomor));
+
+      // Persist to DB
+      if (session) {
+        fetch("/api/contacts", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ contacts: sentUpdates }),
+        });
+      }
+
+      // Broadcast sync
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "sync-data",
+          payload: { type: "CONTACTS_UPDATED", sender: session?.user?.id }
+        });
+      }
+
+      setFeedback(`Membuka ${contacts.length} chat WhatsApp. Pastikan browser mengizinkan pop-up.`);
+      setTimeout(() => setIsSending(false), contacts.length * 220 + 300);
+    } catch (err) {
+      setErrorMessage("Gagal memproses pengiriman massal.");
+      setIsSending(false);
+    }
   };
 
   const handleMarkAsSent = (contact: Contact) => {
@@ -869,16 +933,47 @@ export default function Home() {
           }]
         }),
       });
+
+      // Broadcast sync
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "sync-data",
+          payload: { type: "CONTACTS_UPDATED", sender: session?.user?.id }
+        });
+      }
     }
+  };
+
+  const handleCopyContactMessage = (contact: Contact) => {
+    const finalLink = getFinalLink(computedLink, includeToken);
+    const msg = buildMessage(pesan, contact.nama, finalLink, contact.token);
+
+    navigator.clipboard.writeText(msg);
+
+    // Tandai sebagai terkirim (sama seperti tombol Kirim)
+    handleMarkAsSent(contact);
+
+    setFeedback(`Pesan untuk ${contact.nama} disalin!`);
+  };
+
+  const handleCopyGuestLink = (contact: Contact) => {
+    const finalLink = getFinalLink(computedLink, includeToken);
+    const guestLink = finalLink
+      .replace(/\{nama\}/g, encodeURIComponent(contact.nama))
+      .replace(/\{id\}/g, contact.token);
+    
+    navigator.clipboard.writeText(guestLink);
+    setFeedback(`Link untuk ${contact.nama} telah disalin!`);
   };
 
   const handleSendSingleContact = (contact: Contact) => {
     if (templateInvalid) {
-      setErrorMessage("Lengkapi link dan template. Template wajib berisi {nama} dan {link}.");
+      setErrorMessage("Lengkapi template pesan. Template wajib berisi {nama} dan {link}.");
       return;
     }
 
-    const finalLink = getFinalLink(link, includeToken);
+    const finalLink = getFinalLink(computedLink, includeToken);
     const waUrl = `https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, finalLink, contact.token))}`;
     window.open(waUrl, "_blank");
 
@@ -931,7 +1026,7 @@ export default function Home() {
     if (!pesan.trim()) return "";
     const namaPreview = contacts[0]?.nama ?? "Budi Santoso";
 
-    const finalLinkPreview = getFinalLink(link || "https://nimantra.vercel.app/", includeToken);
+    const finalLinkPreview = getFinalLink(computedLink, includeToken);
     const idPreview = contacts[0]?.token ?? "ID123";
     return buildMessage(pesan, namaPreview, finalLinkPreview, idPreview);
   }, [contacts, link, pesan, includeToken]);
@@ -1433,7 +1528,94 @@ export default function Home() {
                   </div>
                 </div>
 
+                {/* Recent Activity Section (Using Scan Menu History UI) */}
+                <div className={styles.dashboardSection} style={{ marginTop: "var(--space-2)" }}>
+                  <div className={styles.panel}>
+                    <div className={styles.panelHeader} style={{ background: "rgba(0,0,0,0.02)" }}>
+                      <span className={styles.panelTitle}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}><path d="M12 20v-6M6 20V10M18 20V4" /></svg>
+                        Riwayat Kehadiran Tamu
+                      </span>
+                      <span className={styles.pStatTrend} style={{ background: "var(--accent-light)", color: "var(--accent-dark)" }}>Real-time</span>
+                    </div>
+                    <div className={styles.panelBody}>
+                      <div className={styles.activityList}>
+                        {paginatedActivity.length > 0 ? (
+                          paginatedActivity.map(activity => (
+                            <div key={activity.id} className={styles.activityItem}>
+                              <div className={styles.activityAvatar}>
+                                {activity.nama.charAt(0).toUpperCase()}
+                              </div>
+                              <div className={styles.activityContent}>
+                                <div className={styles.activityTop}>
+                                  <span className={styles.activityName}>{activity.nama}</span>
+                                  {(activity.priority?.toUpperCase() === "VIP" || activity.priority?.toUpperCase() === "VVIP") && (
+                                    <span className={`${styles.prioBadgeSmall} ${activity.priority === "VVIP" ? styles.prioVVIP : styles.prioVIP}`}>
+                                      {activity.priority}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className={styles.activityBottom}>
+                                  <svg className={styles.activityIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                  <span className={styles.activityTime}>
+                                    Hadir jam {activity.present_at ? new Date(activity.present_at).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className={styles.emptyActivity}>Belum ada tamu yang hadir hari ini.</div>
+                        )}
+                      </div>
 
+                      {/* Activity Pagination */}
+                      {dashboardStats.recentActivity.length > activityRowsPerPage && (
+                        <div className={styles.paginationContainer} style={{ border: "none", padding: "16px 0 0" }}>
+                          <div className={styles.paginationInfo}>
+                            <strong>{Math.min((activityPage - 1) * activityRowsPerPage + 1, dashboardStats.recentActivity.length)}</strong> – <strong>{Math.min(activityPage * activityRowsPerPage, dashboardStats.recentActivity.length)}</strong> dari <strong>{dashboardStats.recentActivity.length}</strong>
+                          </div>
+                          <div className={styles.paginationNav}>
+                            <button
+                              className={styles.pageNavBtn}
+                              disabled={activityPage === 1}
+                              onClick={() => setActivityPage(prev => prev - 1)}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><polyline points="15 18 9 12 15 6" /></svg>
+                            </button>
+
+                            {Array.from({ length: activityTotalPages }, (_, i) => i + 1)
+                              .filter(p => p === 1 || p === activityTotalPages || (p >= activityPage - 1 && p <= activityPage + 1))
+                              .map((p, i, arr) => {
+                                const items = [];
+                                if (i > 0 && p !== arr[i - 1] + 1) {
+                                  items.push(<span key={`ell-${p}`} className={styles.pageEllipsis}>...</span>);
+                                }
+                                items.push(
+                                  <button
+                                    key={p}
+                                    className={`${styles.pageNumber} ${activityPage === p ? styles.pageActive : ""}`}
+                                    onClick={() => setActivityPage(p)}
+                                  >
+                                    {p}
+                                  </button>
+                                );
+                                return items;
+                              })}
+
+                            <button
+                              className={styles.pageNavBtn}
+                              disabled={activityPage === activityTotalPages}
+                              onClick={() => setActivityPage(prev => prev + 1)}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><polyline points="9 18 15 12 9 6" /></svg>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : activeView === "send" ? (
               <>
@@ -1575,16 +1757,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className={styles.field}>
-                      <label htmlFor="link" className={styles.label}>Link / URL <span className={styles.req}>*</span></label>
-                      <div className={styles.inputWrap}>
-                        <input id="link" type="text" className={styles.input} placeholder="Contoh: https://link.com" autoComplete="off" value={link} onChange={(e) => handleUpdateSettings({ link: e.target.value })} />
-                        <span className={styles.inputIcon}>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg>
-                        </span>
-                      </div>
-                      {!link.trim() && <div className={styles.hintError}>Link tidak boleh kosong.</div>}
-                    </div>
+                    {/* Field Link dihapus karena sudah otomatis berbasis username */}
 
                     <div className={styles.field}>
                       <label htmlFor="pesan" className={styles.label}>Template Pesan <span className={styles.req}>*</span></label>
@@ -1643,14 +1816,24 @@ export default function Home() {
                             <div key={contact.id} className={`${styles.contactRow} ${isSent ? styles.contactRowSent : ""}`}>
                               <div className={styles.contactInfo}>
                                 <span className={styles.contactName}>{contact.nama}</span>
-                                <span className={styles.contactNumber}>{contact.nomor}</span>
+                                <span className={styles.contactNumber}>
+                                  {contact.nomor.startsWith("99") && contact.nomor.length >= 12 ? "" : contact.nomor}
+                                </span>
                               </div>
                               <div className={styles.rowActions}>
                                 {isSent ? (
                                   <span className={styles.sentBtn}>Terkirim</span>
+                                ) : contact.nomor.startsWith("99") && contact.nomor.length >= 12 ? (
+                                  <button
+                                    className={styles.miniBtn}
+                                    onClick={() => handleCopyContactMessage(contact)}
+                                    style={{ background: "var(--accent-dark)", border: "none", color: "white", cursor: "pointer" }}
+                                  >
+                                    Salin
+                                  </button>
                                 ) : (
                                   <a
-                                    href={`https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, getFinalLink(link, includeToken), contact.token))}`}
+                                    href={`https://wa.me/${contact.nomor}?text=${encodeURIComponent(buildMessage(pesan, contact.nama, getFinalLink(computedLink, includeToken), contact.token))}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={styles.miniBtn}
@@ -1976,7 +2159,7 @@ export default function Home() {
           <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className={styles.editModalHead}>
-              <h3 className={styles.editModalTitle}>Edit Tamu</h3>
+              <h3 className={styles.editModalTitle}>Informasi Tamu</h3>
               <button className={styles.editModalClose} onClick={handleCloseEdit}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
@@ -2093,10 +2276,19 @@ export default function Home() {
 
               {/* QR Code */}
               <div className={styles.editField}>
-                <label className={styles.editLabel}>QR Code</label>
+                <label className={styles.editLabel}>QR Code & Link</label>
                 <div className={styles.editQrBox}>
                   <QRCodeSVG value={editingContact.token || "PENDING"} size={100} />
-                  <span className={styles.editQrToken}>{editingContact.token || "—"}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                    <span className={styles.editQrToken}>{editingContact.token || "—"}</span>
+                    <button 
+                      className={styles.miniBtnPrimary} 
+                      onClick={() => handleCopyGuestLink(editingContact)}
+                      style={{ fontSize: '11px', padding: '4px 12px' }}
+                    >
+                      Salin Link
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2115,62 +2307,27 @@ export default function Home() {
         <div className={styles.modalOverlay} onClick={() => setIsAddingGuest(false)}>
           <div className={styles.editModal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.editModalHead}>
-              <h3 className={styles.editModalTitle}>Tambah Tamu Baru</h3>
+              <h3 className={styles.editModalTitle}>Tambah Tamu</h3>
               <button className={styles.editModalClose} onClick={() => setIsAddingGuest(false)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
 
             <div className={styles.editModalBody}>
-              <div className={styles.editFormRow}>
-                <div className={styles.editField} style={{ flex: 3 }}>
-                  <label className={styles.editLabel}>Nama Tamu</label>
-                  <input
-                    type="text"
-                    className={styles.editInput}
-                    value={newGuestData.nama}
-                    onChange={(e) => setNewGuestData({ ...newGuestData, nama: e.target.value })}
-                    placeholder="Nama tamu"
-                  />
-                </div>
-                <div className={styles.editField} style={{ flex: 2 }}>
-                  <label className={styles.editLabel}>Priority</label>
-                  <select
-                    className={styles.editInput}
-                    value={newGuestData.priority}
-                    onChange={(e) => setNewGuestData({ ...newGuestData, priority: e.target.value })}
-                  >
-                    <option value="Reguler">Reguler</option>
-                    <option value="VIP">VIP</option>
-                    <option value="VVIP">VVIP</option>
-                  </select>
-                </div>
-              </div>
-
               <div className={styles.editField}>
-                <label className={styles.editLabel}>Nomor WhatsApp</label>
+                <label className={styles.editLabel}>Nama Tamu</label>
                 <input
                   type="text"
                   className={styles.editInput}
-                  value={newGuestData.nomor}
-                  onChange={(e) => setNewGuestData({ ...newGuestData, nomor: e.target.value })}
-                  placeholder="0812..."
+                  value={newGuestData.nama}
+                  onChange={(e) => setNewGuestData({ ...newGuestData, nama: e.target.value })}
+                  placeholder="Ketik nama tamu..."
+                  autoFocus
                 />
               </div>
-
-              <div className={styles.editField}>
-                <label className={styles.editLabel}>Kategori</label>
-                <select
-                  className={styles.editInput}
-                  value={newGuestData.kategori || "-"}
-                  onChange={(e) => setNewGuestData({ ...newGuestData, kategori: e.target.value })}
-                >
-                  <option value="-">Tanpa Kategori</option>
-                  {uniqueCategories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
+              <p style={{ fontSize: "12px", color: "var(--text-hint)", marginTop: "8px" }}>
+                Tamu akan otomatis ditambahkan ke kategori <strong>Manual</strong> dengan prioritas <strong>Reguler</strong> dan status <strong>Hadir</strong>.
+              </p>
             </div>
 
             <div className={styles.editModalFoot}>

@@ -56,7 +56,7 @@ function normalizeContact(contact: IncomingContact) {
   const token = typeof contact.token === "string" ? contact.token : undefined;
   const added_via = typeof contact.added_via === "string" ? contact.added_via : undefined;
 
-  if (!nama || !nomor) {
+  if (!nama) {
     return null;
   }
 
@@ -245,13 +245,35 @@ export async function POST(request: Request) {
       });
     }
 
-    // 3. Pastikan setiap kontak memiliki token (gunakan yang lama jika ada, atau generate baru jika benar-benar baru)
+    // 2c. Dapatkan semua token yang sudah terpakai di tenant ini untuk pengecekan duplikasi
+    const { data: allTokensData } = await supabase
+      .from("contacts")
+      .select("token")
+      .eq("tenant_id", context.tenantId);
+    
+    const usedTokens = new Set(allTokensData?.map(t => t.token) || []);
+
+    // 3. Pastikan setiap kontak memiliki token (gunakan yang lama jika ada, atau generate baru yang unik)
     const finalContacts = normalizedContacts.map(c => {
       const existingToken = existingTokenMap.get(c.nomor);
-      return {
-        ...c,
-        token: c.token || existingToken || generateToken()
-      };
+      const currentToken = c.token || existingToken;
+
+      if (currentToken) {
+        return { ...c, token: currentToken };
+      }
+
+      // Generate token baru dan pastikan belum pernah dipakai
+      let newToken;
+      let attempts = 0;
+      do {
+        newToken = generateToken();
+        attempts++;
+        // Safety break untuk menghindari infinite loop jika kombinasi habis (sangat tidak mungkin)
+        if (attempts > 1000) break;
+      } while (usedTokens.has(newToken));
+
+      usedTokens.add(newToken); // Tandai sebagai terpakai untuk iterasi berikutnya
+      return { ...c, token: newToken };
     });
 
     const dedupedByNomor = Array.from(
