@@ -82,6 +82,56 @@ function normalizeContact(contact: IncomingContact) {
   return result;
 }
 
+async function sendToN8N(payload: any) {
+  const url = process.env.N8N_WEBHOOK_URL;
+  const secret = process.env.N8N_SECRET;
+
+  if (!url) {
+    console.error("[DEBUG] Error: N8N_WEBHOOK_URL tidak ditemukan di environment variables!");
+    return;
+  }
+
+  console.log(`[DEBUG] Mengirim webhook ke n8n: ${url} untuk tamu: ${payload.name}`);
+
+  fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": secret || "",
+    },
+    body: JSON.stringify(payload),
+  })
+    .then((res) => {
+      if (!res.ok) {
+        console.error(`[DEBUG] n8n merespon dengan status: ${res.status}`);
+      } else {
+        console.log(`[DEBUG] Webhook berhasil terkirim ke n8n (Status 200)`);
+      }
+    })
+    .catch((error) => {
+      console.error("[DEBUG] Gagal menghubungi n8n:", error.message);
+    });
+}
+
+function formatPhone(phone: string) {
+  if (phone.startsWith("0")) {
+    return "62" + phone.slice(1);
+  }
+  return phone;
+}
+
+function getCoupleNameFromSession(user: any): string {
+  const email = user?.email;
+
+  if (!email) return "Pengantin";
+
+  const namePart = email.split("@")[0];
+
+  if (!namePart) return "Pengantin";
+
+  return namePart.charAt(0).toUpperCase() + namePart.slice(1);
+}
+
 const getErrorStatus = (message?: string) => {
   if (message === "Unauthorized") return 401;
   if (message === "Forbidden") return 403;
@@ -128,6 +178,10 @@ export async function POST(request: Request) {
     requireTenant(context);
 
     const supabase = context.supabase;
+
+    // Fetch user for couple name
+    const { data: { user } } = await supabase.auth.getUser();
+    const coupleName = getCoupleNameFromSession(user);
 
     const payload = (await request.json()) as { action?: string; contacts?: IncomingContact[] };
     const contactsRaw = Array.isArray(payload.contacts) ? payload.contacts : [];
@@ -201,6 +255,16 @@ export async function POST(request: Request) {
           if (!updatedRows || updatedRows.length === 0) {
             // Kemungkinan sudah di-check-in oleh request lain (race) atau record tidak match.
             alreadyPresent.push(target.nomor);
+          } else {
+            // SUCCESS: Trigger outgoing webhook to n8n (fire-and-forget)
+            sendToN8N({
+              tenant_id: context.tenantId,
+              guest_id: updatedRows[0].id,
+              name: target.nama,
+              phone: formatPhone(target.nomor),
+              couple: coupleName,
+              present_at: target.present_at,
+            });
           }
         }
 
