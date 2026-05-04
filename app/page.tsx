@@ -152,12 +152,9 @@ const getCategoryColor = (category: string) => {
 export default function Home() {
   const router = useRouter();
   const [bulkInput, setBulkInput] = useState("");
-  const [contacts, setContacts] = useState<Contact[]>(() => {
-    if (typeof window === "undefined") return [];
-    const cached = localStorage.getItem("wa_sender_contacts");
-    return cached ? JSON.parse(cached) : [];
-  });
-  const [activeView, setActiveView] = useState<"dashboard" | "send" | "guestbook" | "scan">(() => initialLocal("wa_sender_active_view", "dashboard") as any);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [hasMounted, setHasMounted] = useState(false);
+  const [activeView, setActiveView] = useState<"dashboard" | "send" | "guestbook" | "scan">("dashboard");
   const [guestbookQuery, setGuestbookQuery] = useState("");
   const [sentNomors, setSentNomors] = useState<string[]>([]);
   const [isFetching, setIsFetching] = useState(false);
@@ -173,11 +170,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [session, setSession] = useState<Session | null>(null);
-  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(() => {
-    if (typeof window === "undefined") return null;
-    const cached = localStorage.getItem("wa_sender_session_info");
-    return cached ? JSON.parse(cached) : null;
-  });
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const sessionFetchedRef = useRef<string | null>(null);
   const [isRoleChecking, setIsRoleChecking] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -204,7 +197,7 @@ export default function Home() {
   const [sortConfig, setSortConfig] = useState<{ key: keyof Contact | 'no'; direction: 'asc' | 'desc' }>({ key: 'is_present', direction: 'desc' });
   const [importOpen, setImportOpen] = useState(true);
   const [configOpen, setConfigOpen] = useState(true);
-  const [isSidebarMinimized, setIsSidebarMinimized] = useState(() => initialLocal("wa_sender_sidebar_minimized", "false") === "true");
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   const channelRef = useRef<any>(null);
 
   const actualUsername = session?.user?.email?.split('@')[0] || 'tamu';
@@ -222,6 +215,23 @@ export default function Home() {
   const pesanMissingLink = pesan.trim() !== "" && !pesan.includes("{link}");
   const templateInvalid = !pesan.trim() || !computedLink.trim() || pesanMissingNama || pesanMissingLink;
 
+  // Handle initial hydration and cache loading
+  useEffect(() => {
+    setHasMounted(true);
+    
+    const cachedContacts = localStorage.getItem("wa_sender_contacts");
+    if (cachedContacts) setContacts(JSON.parse(cachedContacts));
+    
+    const cachedView = localStorage.getItem("wa_sender_active_view");
+    if (cachedView) setActiveView(cachedView as any);
+    
+    const cachedSessionInfo = localStorage.getItem("wa_sender_session_info");
+    if (cachedSessionInfo) setSessionInfo(JSON.parse(cachedSessionInfo));
+    
+    const cachedMinimized = localStorage.getItem("wa_sender_sidebar_minimized");
+    if (cachedMinimized) setIsSidebarMinimized(cachedMinimized === "true");
+  }, []);
+
   // Efek untuk membersihkan notifikasi otomatis setelah 3 detik
   useEffect(() => {
     if (feedback || errorMessage || loadingMessage) {
@@ -232,7 +242,7 @@ export default function Home() {
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [feedback, errorMessage]);
+  }, [feedback, errorMessage, loadingMessage]);
 
   const handleStartEdit = (contact: Contact) => {
     setEditingContact(contact);
@@ -801,7 +811,8 @@ export default function Home() {
       const savedContacts = Array.isArray(data.contacts) ? data.contacts : [];
       setContacts(savedContacts);
 
-      setSentNomors([]);
+      // Sinkronkan sentNomors dari data terbaru agar status "Terkirim" tidak hilang
+      setSentNomors(savedContacts.filter(c => c.is_sent).map(c => c.nomor));
       setBulkInput("");
 
       // Reset status kategori setelah berhasil
@@ -1169,6 +1180,7 @@ export default function Home() {
   };
 
   if (
+    !hasMounted ||
     (isInitializing && !sessionInfo) ||
     (session && isRoleChecking && !sessionInfo) ||
     (sessionInfo && sessionInfo.role !== "user")
@@ -1182,7 +1194,9 @@ export default function Home() {
         <div className={styles.loginCard}>
           {/* Logo + Branding */}
           <div className={styles.loginBrand}>
-            <div className={styles.loginLogo}>W</div>
+            <div className={styles.loginLogo}>
+              <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
             <h1 className={styles.loginTitle}>WA Sender</h1>
           </div>
 
@@ -1275,7 +1289,9 @@ export default function Home() {
               <line x1="3" y1="18" x2="21" y2="18"></line>
             </svg>
           </button>
-          <div className={styles.topBarLogo}>W</div>
+          <div className={styles.topBarLogo}>
+            <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
           <span className={styles.topBarTitle}>Dashboard</span>
         </div>
         <div className={styles.topBarUser}>
@@ -1806,12 +1822,12 @@ export default function Home() {
 
                       {contacts
                         .sort((a, b) => {
-                          const aSent = sentNomors.includes(a.nomor);
-                          const bSent = sentNomors.includes(b.nomor);
+                          const aSent = a.is_sent || sentNomors.includes(a.nomor);
+                          const bSent = b.is_sent || sentNomors.includes(b.nomor);
                           return aSent === bSent ? 0 : aSent ? 1 : -1;
                         })
                         .map((contact) => {
-                          const isSent = sentNomors.includes(contact.nomor);
+                          const isSent = contact.is_sent || sentNomors.includes(contact.nomor);
                           return (
                             <div key={contact.id} className={`${styles.contactRow} ${isSent ? styles.contactRowSent : ""}`}>
                               <div className={styles.contactInfo}>

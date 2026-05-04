@@ -206,7 +206,7 @@ export async function POST(request: Request) {
     // 2. Cek data yang sudah ada di DB
     const { data: existing, error: existingError } = await supabase
       .from("contacts")
-      .select("nomor, token, is_present, present_at")
+      .select("nomor, token, is_present, present_at, is_sent")
       .eq("tenant_id", context.tenantId)
       .in("nomor", nomors);
 
@@ -319,25 +319,30 @@ export async function POST(request: Request) {
 
     // 3. Pastikan setiap kontak memiliki token (gunakan yang lama jika ada, atau generate baru yang unik)
     const finalContacts = normalizedContacts.map(c => {
-      const existingToken = existingTokenMap.get(c.nomor);
+      const existing = existingByNomor.get(c.nomor);
+      const existingToken = existing?.token;
       const currentToken = c.token || existingToken;
 
+      // Preserve existing status if not explicitly provided in the import
+      const is_sent = typeof c.is_sent === "boolean" && c.is_sent !== false ? c.is_sent : (existing?.is_sent ?? false);
+      const is_present = typeof c.is_present === "boolean" && c.is_present !== false ? c.is_present : (existing?.is_present ?? false);
+      const present_at = c.present_at || existing?.present_at;
+
       if (currentToken) {
-        return { ...c, token: currentToken };
+        return { ...c, token: currentToken, is_sent, is_present, present_at };
       }
 
-      // Generate token baru dan pastikan belum pernah dipakai
+      // Generate new token and ensure it's unique
       let newToken;
       let attempts = 0;
       do {
         newToken = generateToken();
         attempts++;
-        // Safety break untuk menghindari infinite loop jika kombinasi habis (sangat tidak mungkin)
         if (attempts > 1000) break;
       } while (usedTokens.has(newToken));
 
-      usedTokens.add(newToken); // Tandai sebagai terpakai untuk iterasi berikutnya
-      return { ...c, token: newToken };
+      usedTokens.add(newToken);
+      return { ...c, token: newToken, is_sent, is_present, present_at };
     });
 
     const dedupedByNomor = Array.from(

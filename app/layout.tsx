@@ -18,6 +18,13 @@ export const metadata: Metadata = {
   title: "WA Sender — Kirim Pesan WhatsApp",
   description:
     "Simpan kontak WhatsApp ke Supabase untuk dipakai pada pengembangan fitur berikutnya.",
+  icons: {
+    icon: [
+      { url: "/logo.png" },
+      { url: "/logo.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: { url: "/logo.png" },
+  },
 };
 
 export default function RootLayout({
