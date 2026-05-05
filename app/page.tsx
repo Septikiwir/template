@@ -273,6 +273,120 @@ export default function Home() {
     return () => window.removeEventListener("online", handleOnline);
   }, []);
 
+  // 1. Handle Ambil Data
+  const handleLoadContacts = useCallback(async (force: boolean = false) => {
+    if (!session) return;
+
+    try {
+      console.log("[DEBUG] Fetching contacts (force=" + force + ")...");
+      if (contacts.length === 0) setIsFetching(true);
+
+      const response = await fetch("/api/contacts", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store"
+      });
+      const data = await response.json();
+      if (response.ok) {
+        const freshContacts = Array.isArray(data.contacts) ? data.contacts : [];
+        setContacts(freshContacts);
+        setSentNomors(freshContacts.filter((c: Contact) => c.is_sent).map((c: Contact) => c.nomor));
+
+        // Simpan ke localStorage di latar belakang (non-blocking)
+        setTimeout(() => {
+          localStorage.setItem("wa_sender_contacts", JSON.stringify(freshContacts));
+          localStorage.setItem("wa_sender_contacts_last_fetched", Date.now().toString());
+        }, 0);
+      }
+    } catch (err) {
+      console.error("Load Error:", err);
+    } finally {
+      setIsFetching(false);
+    }
+  }, [session, contacts.length]);
+
+  const handleUpdateContact = useCallback(async (updated: Contact, action?: string) => {
+    if (!session) return;
+    try {
+      // Optimistic UI update
+      setContacts(prev => prev.map(c =>
+        c.id === updated.id ? updated : c
+      ));
+
+      const response = await fetch("/api/contacts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action,
+          contacts: [{
+            id: updated.id,
+            nama: updated.nama,
+            nomor: updated.nomor,
+            priority: updated.priority,
+            kategori: updated.kategori,
+            is_sent: updated.is_sent,
+            is_present: updated.is_present,
+            present_at: updated.present_at,
+            token: updated.token,
+            added_via: updated.added_via
+          }]
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Gagal memperbarui database.");
+      }
+
+      setFeedback("Perubahan berhasil disimpan.");
+      setInitialEditingContact(null);
+      setEditingContact(null);
+
+      // Broadcast sync
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "sync-data",
+          payload: { type: "CONTACTS_UPDATED", sender: session?.user?.id }
+        });
+      }
+    } catch (error) {
+      console.warn("[OFFLINE] Gagal simpan ke server, mencoba simpan ke antrean lokal.");
+      
+      // Save any manual update to queue (includes check-in from modal or data changes)
+      const offlineItem: OfflineCheckin = {
+        localId: crypto.randomUUID(),
+        token: updated.token,
+        contact: {
+          id: updated.id,
+          nama: updated.nama,
+          nomor: updated.nomor,
+          priority: updated.priority,
+          kategori: updated.kategori,
+          is_sent: updated.is_sent,
+          is_present: updated.is_present,
+          present_at: updated.present_at,
+          token: updated.token,
+          added_via: updated.added_via
+        },
+        action: action || "update", // Default action is update/upsert
+        timestamp: Date.now(),
+        retryCount: 0
+      };
+      
+      await addToQueue(offlineItem);
+      setQueueSize(prev => prev + 1);
+      if (updated.token) {
+        setLocallyScannedTokens(prev => new Set(prev).add(updated.token));
+      }
+      setFeedback("Koneksi bermasalah. Perubahan disimpan di antrean HP.");
+      setEditingContact(null);
+      setInitialEditingContact(null);
+    }
+  }, [session, channelRef]);
+
   const processQueue = useCallback(async () => {
     if (isSyncing) return;
     const queue = await getQueue();
@@ -362,89 +476,6 @@ export default function Home() {
     if (isDirty) {
       setShowDiscardConfirm(true);
     } else {
-      setEditingContact(null);
-      setInitialEditingContact(null);
-    }
-  };
-
-  const handleUpdateContact = async (updated: Contact, action?: "checkin") => {
-    if (!session) return;
-    try {
-      // Optimistic UI update
-      setContacts(prev => prev.map(c =>
-        c.id === updated.id ? updated : c
-      ));
-
-      const response = await fetch("/api/contacts", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          action,
-          contacts: [{
-            id: updated.id,
-            nama: updated.nama,
-            nomor: updated.nomor,
-            priority: updated.priority,
-            kategori: updated.kategori,
-            is_sent: updated.is_sent,
-            is_present: updated.is_present,
-            present_at: updated.present_at,
-            token: updated.token,
-            added_via: updated.added_via
-          }]
-        }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Gagal memperbarui database.");
-      }
-
-      setFeedback("Perubahan berhasil disimpan.");
-      setInitialEditingContact(null);
-      setEditingContact(null);
-
-      // Broadcast sync
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: "broadcast",
-          event: "sync-data",
-          payload: { type: "CONTACTS_UPDATED", sender: session?.user?.id }
-        });
-      }
-    } catch (error) {
-      console.warn("[OFFLINE] Gagal simpan ke server, mencoba simpan ke antrean lokal.");
-      
-      // Save any manual update to queue (includes check-in from modal or data changes)
-      const offlineItem: OfflineCheckin = {
-        localId: crypto.randomUUID(),
-        token: updated.token,
-        contact: {
-          id: updated.id,
-          nama: updated.nama,
-          nomor: updated.nomor,
-          priority: updated.priority,
-          kategori: updated.kategori,
-          is_sent: updated.is_sent,
-          is_present: updated.is_present,
-          present_at: updated.present_at,
-          token: updated.token,
-          added_via: updated.added_via
-        },
-        action: action || "update", // Default action is update/upsert
-        timestamp: Date.now(),
-        retryCount: 0
-      };
-      
-      await addToQueue(offlineItem);
-      setQueueSize(prev => prev + 1);
-      if (updated.token) {
-        setLocallyScannedTokens(prev => new Set(prev).add(updated.token));
-      }
-      setFeedback("Koneksi bermasalah. Perubahan disimpan di antrean HP.");
       setEditingContact(null);
       setInitialEditingContact(null);
     }
@@ -637,36 +668,7 @@ export default function Home() {
     }
   };
 
-  // 1. Handle Ambil Data
-  const handleLoadContacts = async (force: boolean = false) => {
-    if (!session) return;
 
-    try {
-      console.log("[DEBUG] Fetching contacts (force=" + force + ")...");
-      if (contacts.length === 0) setIsFetching(true);
-
-      const response = await fetch("/api/contacts", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        cache: "no-store"
-      });
-      const data = await response.json();
-      if (response.ok) {
-        const freshContacts = Array.isArray(data.contacts) ? data.contacts : [];
-        setContacts(freshContacts);
-        setSentNomors(freshContacts.filter((c: Contact) => c.is_sent).map((c: Contact) => c.nomor));
-
-        // Simpan ke localStorage di latar belakang (non-blocking)
-        setTimeout(() => {
-          localStorage.setItem("wa_sender_contacts", JSON.stringify(freshContacts));
-          localStorage.setItem("wa_sender_contacts_last_fetched", Date.now().toString());
-        }, 0);
-      }
-    } catch (err) {
-      console.error("Load Error:", err);
-    } finally {
-      setIsFetching(false);
-    }
-  };
 
   const handleLoadSettings = async () => {
     if (!session) return;
