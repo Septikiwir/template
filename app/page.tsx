@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 import { QRCodeSVG } from "qrcode.react";
@@ -243,9 +243,25 @@ export default function Home() {
       const tokens = new Set<string>();
       queue.forEach(item => tokens.add(item.token));
       setLocallyScannedTokens(tokens);
+      
+      // AUTO-SYNC ON MOUNT: Jika ada antrean, langsung coba sync
+      if (queue.length > 0 && navigator.onLine) {
+        processQueue();
+      }
     };
     initOfflineData();
   }, []);
+
+  // background sync polling
+  useEffect(() => {
+    if (queueSize > 0 && !isSyncing) {
+      const timer = setInterval(() => {
+        console.log("[OFFLINE] Polling sync attempt...");
+        processQueue();
+      }, 10000); // Cek setiap 10 detik
+      return () => clearInterval(timer);
+    }
+  }, [queueSize, isSyncing]);
 
   // Listen for online status
   useEffect(() => {
@@ -257,7 +273,7 @@ export default function Home() {
     return () => window.removeEventListener("online", handleOnline);
   }, []);
 
-  const processQueue = async () => {
+  const processQueue = useCallback(async () => {
     if (isSyncing) return;
     const queue = await getQueue();
     if (queue.length === 0) {
@@ -315,7 +331,7 @@ export default function Home() {
       setFeedback("Sinkronisasi selesai!");
       handleLoadContacts(true);
     }
-  };
+  }, [session, isSyncing, handleLoadContacts]);
 
   // Efek untuk membersihkan notifikasi otomatis setelah 3 detik
   useEffect(() => {
