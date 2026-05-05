@@ -323,10 +323,13 @@ export async function POST(request: Request) {
       const existingToken = existing?.token;
       const currentToken = c.token || existingToken;
 
-      // Preserve existing status if not explicitly provided in the import
-      const is_sent = typeof c.is_sent === "boolean" && c.is_sent !== false ? c.is_sent : (existing?.is_sent ?? false);
-      const is_present = typeof c.is_present === "boolean" && c.is_present !== false ? c.is_present : (existing?.is_present ?? false);
-      const present_at = c.present_at || existing?.present_at;
+      // Preserve existing status only if it's a NEW contact (no ID) and the field is not explicitly provided
+      // If it's an update (has ID), we trust the values sent from the UI
+      const isManualUpdate = typeof c.id !== "undefined";
+      
+      const is_sent = isManualUpdate ? c.is_sent : (typeof c.is_sent === "boolean" && c.is_sent !== false ? c.is_sent : (existing?.is_sent ?? false));
+      const is_present = isManualUpdate ? c.is_present : (typeof c.is_present === "boolean" && c.is_present !== false ? c.is_present : (existing?.is_present ?? false));
+      const present_at = isManualUpdate ? c.present_at : (c.present_at || existing?.present_at);
 
       if (currentToken) {
         return { ...c, token: currentToken, is_sent, is_present, present_at };
