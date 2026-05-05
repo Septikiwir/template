@@ -9,6 +9,7 @@ import styles from "./page.module.css";
 import { supabase } from "@/lib/supabase";
 import { type Session } from "@supabase/supabase-js";
 import type { Role } from "@/lib/rbac/types";
+import { addToQueue, getQueue, removeFromQueue, updateQueueItem, type OfflineCheckin } from "@/lib/db";
 
 type Contact = {
   id: number;
@@ -199,6 +200,10 @@ export default function Home() {
   const [configOpen, setConfigOpen] = useState(true);
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   const channelRef = useRef<any>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [queueSize, setQueueSize] = useState(0);
+  const [locallyScannedTokens, setLocallyScannedTokens] = useState<Set<string>>(new Set());
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const actualUsername = session?.user?.email?.split('@')[0] || 'tamu';
   const computedLink = `https://nimantra.vercel.app/${actualUsername}/v1/`;
@@ -230,7 +235,87 @@ export default function Home() {
 
     const cachedMinimized = localStorage.getItem("wa_sender_sidebar_minimized");
     if (cachedMinimized) setIsSidebarMinimized(cachedMinimized === "true");
+
+    // Initialize offline queue info
+    const initOfflineData = async () => {
+      const queue = await getQueue();
+      setQueueSize(queue.length);
+      const tokens = new Set<string>();
+      queue.forEach(item => tokens.add(item.token));
+      setLocallyScannedTokens(tokens);
+    };
+    initOfflineData();
   }, []);
+
+  // Listen for online status
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log("[OFFLINE] Device back online. Starting sync...");
+      processQueue();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, []);
+
+  const processQueue = async () => {
+    if (isSyncing) return;
+    const queue = await getQueue();
+    if (queue.length === 0) {
+      setQueueSize(0);
+      return;
+    }
+
+    setIsSyncing(true);
+    setLoadingMessage(`Sinkronisasi ${queue.length} data...`);
+
+    for (const item of queue) {
+      let success = false;
+      let currentRetry = item.retryCount || 0;
+
+      while (!success && currentRetry < 5) {
+        try {
+          const response = await fetch("/api/contacts", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session?.access_token}`,
+            },
+            body: JSON.stringify({
+              action: item.action,
+              contacts: [item.contact]
+            }),
+          });
+
+          if (response.ok) {
+            await removeFromQueue(item.localId);
+            success = true;
+          } else {
+            throw new Error("Server rejected request");
+          }
+        } catch (err) {
+          currentRetry++;
+          await updateQueueItem({ ...item, retryCount: currentRetry });
+          // Exponential backoff
+          const delay = Math.pow(2, currentRetry) * 1000;
+          console.warn(`[OFFLINE] Sync failed for ${item.token}. Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+      
+      if (!success) {
+        console.error(`[OFFLINE] Giving up on syncing ${item.token} after 5 retries.`);
+      }
+    }
+
+    const remaining = await getQueue();
+    setQueueSize(remaining.length);
+    setIsSyncing(false);
+    setLoadingMessage("");
+    if (remaining.length === 0) {
+      setFeedback("Sinkronisasi selesai!");
+      handleLoadContacts(true);
+    }
+  };
 
   // Efek untuk membersihkan notifikasi otomatis setelah 3 detik
   useEffect(() => {
@@ -269,6 +354,7 @@ export default function Home() {
   const handleUpdateContact = async (updated: Contact, action?: "checkin") => {
     if (!session) return;
     try {
+      // Optimistic UI update
       setContacts(prev => prev.map(c =>
         c.id === updated.id ? updated : c
       ));
@@ -314,9 +400,38 @@ export default function Home() {
         });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Gagal menyimpan.";
-      setErrorMessage(message);
-      handleLoadContacts();
+      console.warn("[OFFLINE] Gagal simpan ke server, mencoba simpan ke antrean lokal.");
+      
+      if (action === "checkin") {
+        const offlineItem: OfflineCheckin = {
+          localId: crypto.randomUUID(),
+          token: updated.token,
+          contact: {
+            id: updated.id,
+            nama: updated.nama,
+            nomor: updated.nomor,
+            priority: updated.priority,
+            kategori: updated.kategori,
+            is_sent: updated.is_sent,
+            is_present: updated.is_present,
+            present_at: updated.present_at,
+            token: updated.token,
+            added_via: updated.added_via
+          },
+          action: "checkin",
+          timestamp: Date.now(),
+          retryCount: 0
+        };
+        
+        await addToQueue(offlineItem);
+        setQueueSize(prev => prev + 1);
+        setLocallyScannedTokens(prev => new Set(prev).add(updated.token));
+        setFeedback("Koneksi bermasalah. Data disimpan di antrean HP.");
+      } else {
+        const message = error instanceof Error ? error.message : "Gagal menyimpan.";
+        setErrorMessage(message);
+        handleLoadContacts();
+      }
     }
   };
 
@@ -432,6 +547,14 @@ export default function Home() {
 
   const handleScanSuccess = async (decodedText: string) => {
     const cleanToken = decodedText.trim();
+    
+    // Cek duplikasi lokal (antrean offline)
+    if (locallyScannedTokens.has(cleanToken)) {
+      playSound("error");
+      alert("Sudah check-in (Sedang antre sinkronisasi)");
+      return;
+    }
+
     const contact = contacts.find(c => c.token === cleanToken);
 
     if (contact) {
@@ -2050,6 +2173,27 @@ export default function Home() {
                   scannedContact={scannedContact}
                   onReset={() => setScannedContact(null)}
                 />
+
+                {queueSize > 0 && (
+                  <div className={styles.panel} style={{ marginTop: "var(--space-2)", background: "var(--accent-light)", border: "1px solid var(--accent-dark)" }}>
+                    <div className={styles.panelBody} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div className={styles.toastIcon} style={{ background: "var(--accent-dark)", color: "white", width: "24px", height: "24px", fontSize: "14px" }}>!</div>
+                        <span style={{ fontSize: "14px", fontWeight: "600", color: "var(--accent-dark)" }}>
+                          {queueSize} data belum tersinkronisasi
+                        </span>
+                      </div>
+                      <button 
+                        className={styles.miniBtnPrimary} 
+                        onClick={processQueue} 
+                        disabled={isSyncing}
+                        style={{ background: "var(--accent-dark)", padding: "6px 16px" }}
+                      >
+                        {isSyncing ? "Sinkron..." : "Sync Sekarang"}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className={styles.panel} style={{ marginTop: "var(--space-2)" }}>
                   <div className={styles.panelHeader}>
