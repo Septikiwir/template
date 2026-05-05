@@ -64,9 +64,10 @@ export async function GET(request: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error("[REMINDER_API] Critical Error:", error); // Penting untuk debug
+    console.error("FULL ERROR:", error); // tampil di terminal
+
     return NextResponse.json(
-      { error: "Server configuration error" },
+      { error: error.message || error.toString() }, // kirim ke n8n
       { status: 500 }
     );
   }
