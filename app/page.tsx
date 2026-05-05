@@ -243,7 +243,7 @@ export default function Home() {
       const tokens = new Set<string>();
       queue.forEach(item => tokens.add(item.token));
       setLocallyScannedTokens(tokens);
-      
+
       // AUTO-SYNC ON MOUNT: Jika ada antrean, langsung coba sync
       if (queue.length > 0 && navigator.onLine) {
         processQueue();
@@ -354,7 +354,7 @@ export default function Home() {
       }
     } catch (error) {
       console.warn("[OFFLINE] Gagal simpan ke server, mencoba simpan ke antrean lokal.");
-      
+
       // Save any manual update to queue (includes check-in from modal or data changes)
       const offlineItem: OfflineCheckin = {
         localId: crypto.randomUUID(),
@@ -375,7 +375,7 @@ export default function Home() {
         timestamp: Date.now(),
         retryCount: 0
       };
-      
+
       await addToQueue(offlineItem);
       setQueueSize(prev => prev + 1);
       if (updated.token) {
@@ -431,7 +431,7 @@ export default function Home() {
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
-      
+
       if (!success) {
         console.error(`[OFFLINE] Giving up on syncing ${item.token} after 5 retries.`);
       }
@@ -529,7 +529,7 @@ export default function Home() {
     const tempId = Math.floor(Math.random() * -1000000);
     const tempToken = `T-${Date.now()}`;
     const finalNomor = newGuestData.nomor || `99${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-    
+
     const newGuest: any = {
       id: tempId,
       nama: newGuestData.nama,
@@ -584,7 +584,7 @@ export default function Home() {
       }
     } catch (err) {
       console.warn("[OFFLINE] Gagal tambah tamu ke server, menyimpan ke antrean lokal.");
-      
+
       const offlineItem: OfflineCheckin = {
         localId: crypto.randomUUID(),
         token: tempToken,
@@ -605,7 +605,7 @@ export default function Home() {
       await addToQueue(offlineItem);
       setQueueSize(prev => prev + 1);
       setLocallyScannedTokens(prev => new Set(prev).add(tempToken));
-      
+
       setFeedback("Koneksi bermasalah. Tamu baru disimpan di antrean HP.");
       setIsAddingGuest(false);
       setNewGuestData({ nama: "", nomor: "", priority: "Reguler", kategori: "-" });
@@ -633,7 +633,7 @@ export default function Home() {
 
   const handleScanSuccess = async (decodedText: string) => {
     const cleanToken = decodedText.trim();
-    
+
     // Cek duplikasi lokal (antrean offline)
     if (locallyScannedTokens.has(cleanToken)) {
       playSound("error");
@@ -1546,7 +1546,7 @@ export default function Home() {
                       <div className={`${styles.pStatIcon} ${styles.pIconBlue}`}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
                       </div>
-                      <span className={styles.pStatTrend} style={{ background: "#EBF2FF", color: "#3B82F6" }}>+{dashboardStats.addedToday} Baru</span>
+                      <span className={styles.pStatTrend} style={{ background: "#EBF2FF", color: "#3B82F6" }}>+{dashboardStats.addedToday} Hari ini</span>
                     </div>
                     <div className={styles.pStatBody}>
                       <div className={styles.panelTitle}>Total Tamu</div>
@@ -1564,7 +1564,7 @@ export default function Home() {
                         background: "#dcfce7",
                         color: "#16a34a"
                       }}>
-                        Terdistribusi
+                        Diberikan
                       </span>
                     </div>
                     <div className={styles.pStatBody}>
@@ -2241,9 +2241,9 @@ export default function Home() {
                           {queueSize} data belum tersinkronisasi
                         </span>
                       </div>
-                      <button 
-                        className={styles.miniBtnPrimary} 
-                        onClick={processQueue} 
+                      <button
+                        className={styles.miniBtnPrimary}
+                        onClick={processQueue}
                         disabled={isSyncing}
                         style={{ background: "var(--accent-dark)", padding: "6px 16px" }}
                       >
@@ -2689,9 +2689,43 @@ function ScannerView({
   const [isMaximized, setIsMaximized] = useState(false);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [isVisible, setIsVisible] = useState(true);
+  const [hasTorch, setHasTorch] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
+  const [zoomRange, setZoomRange] = useState<{ min: number, max: number, step: number } | null>(null);
+  const [currentZoom, setCurrentZoom] = useState(1);
 
   const toggleCamera = () => {
     setFacingMode(prev => (prev === "environment" ? "user" : "environment"));
+    setIsTorchOn(false);
+  };
+
+  const toggleTorch = async () => {
+    const scanner = scannerRef.current;
+    if (scanner && hasTorch) {
+      try {
+        const newState = !isTorchOn;
+        await scanner.applyVideoConstraints({
+          advanced: [{ torch: newState }]
+        } as any);
+        setIsTorchOn(newState);
+      } catch (err) {
+        console.error("Error toggling torch:", err);
+      }
+    }
+  };
+
+  const handleZoomChange = async (value: number) => {
+    const scanner = scannerRef.current;
+    if (scanner && zoomRange) {
+      try {
+        await scanner.applyVideoConstraints({
+          advanced: [{ zoom: value }]
+        } as any);
+        setCurrentZoom(value);
+      } catch (err) {
+        console.error("Error applying zoom:", err);
+      }
+    }
   };
 
   const toggleMaximize = () => {
@@ -2734,7 +2768,23 @@ function ScannerView({
           onScanSuccessRef.current(decodedText);
         },
         undefined
-      ).catch(() => { });
+      ).then(() => {
+        // Cek dukungan torch & zoom setelah kamera aktif
+        const scanner = html5QrCode;
+        const track = (scanner as any).isRunning ? (scanner as any).videoTrack : null;
+        if (track) {
+          const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+          setHasTorch(!!capabilities.torch);
+          if (capabilities.zoom) {
+            setZoomRange({
+              min: capabilities.zoom.min,
+              max: capabilities.zoom.max,
+              step: capabilities.zoom.step || 0.1
+            });
+            setCurrentZoom(capabilities.zoom.min || 1);
+          }
+        }
+      }).catch(() => { });
     }, 500);
 
     return () => {
@@ -2822,6 +2872,18 @@ function ScannerView({
                   <circle cx="12" cy="13" r="4" />
                 </svg>
               </button>
+              {facingMode === "environment" && (
+                <button
+                  className={`${styles.scannerActionBtn} ${isTorchOn ? styles.scannerActionBtnActive : ""}`}
+                  onClick={toggleTorch}
+                  title="Senter"
+                  style={{ color: isTorchOn ? "#fbbf24" : "currentColor", opacity: hasTorch ? 1 : 0.5 }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                  </svg>
+                </button>
+              )}
               <button
                 className={styles.scannerActionBtn}
                 onClick={toggleMaximize}
@@ -2859,6 +2921,21 @@ function ScannerView({
             <div className={styles.scannerOverlayFrame}>
               <div className={styles.scannerFrameCorners}></div>
             </div>
+
+            {zoomRange && !scannedContact && isCameraEnabled && (
+              <div className={styles.zoomControlContainer}>
+                <input
+                  type="range"
+                  min={zoomRange.min}
+                  max={zoomRange.max}
+                  step={zoomRange.step}
+                  value={currentZoom}
+                  onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
+                  className={styles.zoomSlider}
+                />
+                <span className={styles.zoomValue}>{currentZoom.toFixed(1)}x</span>
+              </div>
+            )}
 
           </div>
         )}
