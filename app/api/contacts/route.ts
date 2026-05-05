@@ -274,16 +274,9 @@ export async function POST(request: Request) {
             { status: 404 }
           );
         }
-
-        if (alreadyPresent.length > 0) {
-          return NextResponse.json(
-            { error: "Check-in berulang tidak diizinkan.", nomors: alreadyPresent },
-            { status: 409 }
-          );
-        }
       }
 
-      // Jika check-in berhasil, refetch dan return
+      // Jika check-in berhasil atau sudah hadir, refetch dan return
       const { data, error: selectError } = await listContacts(supabase, {
         tenantId: context.tenantId,
         isSuperadmin: context.isSuperadmin,
