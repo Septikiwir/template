@@ -1,66 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { listContacts } from "@/lib/dal/contacts";
+import { getSessionContext } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
 /**
- * API Khusus untuk otomasi (seperti n8n) untuk mengambil data tamu.
- * Menggunakan API Key untuk autentikasi dan tenantId melalui query parameter.
+ * API Reminders dengan Dual Mode:
+ * 1. Mode N8N: Menggunakan x-api-key dan tenantId di query param.
+ * 2. Mode User: Menggunakan session login (Bearer Token).
  */
 export async function GET(request: NextRequest) {
   try {
-    // 1. Validasi API Key khusus
     const apiKey = request.headers.get("x-api-key");
     const secretKey = process.env.N8N_API_KEY;
 
-    if (!secretKey) {
-      console.error("[REMINDER_API] Error: N8N_API_KEY tidak dikonfigurasi di environment variables.");
-      return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+    // ✅ MODE N8N / AUTOMATION
+    if (secretKey && apiKey === secretKey) {
+      const { searchParams } = new URL(request.url);
+      const tenantId = searchParams.get("tenantId");
+
+      if (!tenantId) {
+        return NextResponse.json({ error: "tenantId required" }, { status: 400 });
+      }
+
+      // Gunakan Admin Client untuk bypass RLS dalam mode otomasi
+      const supabase = getSupabaseAdmin();
+      const { data, error } = await listContacts(supabase, {
+        tenantId,
+        isSuperadmin: true,
+      });
+
+      if (error) {
+        console.error("[REMINDER_API] N8N Mode Error:", error);
+        return NextResponse.json({ error }, { status: 400 });
+      }
+
+      return NextResponse.json(data);
     }
 
-    if (apiKey !== secretKey) {
+    // ✅ MODE NORMAL (USER LOGIN)
+    // Jika tidak ada API key yang cocok, coba validasi lewat session user
+    try {
+      const context = await getSessionContext(request);
+
+      const { data, error } = await listContacts(context.supabase, {
+        tenantId: context.tenantId,
+        isSuperadmin: context.isSuperadmin,
+      });
+
+      if (error) {
+        console.error("[REMINDER_API] User Mode Error:", error);
+        return NextResponse.json({ error }, { status: 400 });
+      }
+
+      return NextResponse.json(data);
+    } catch (authError) {
+      // Jika ada API key tapi salah, atau session tidak valid
+      if (apiKey && apiKey !== secretKey) {
+        return NextResponse.json({ error: "Invalid API Key" }, { status: 401 });
+      }
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 2. Ambil tenantId dari query parameter
-    const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get("tenantId");
-
-    if (!tenantId) {
-      return NextResponse.json({ error: "Parameter 'tenantId' wajib diisi." }, { status: 400 });
-    }
-
-    // 3. Inisialisasi Supabase Admin (untuk bypass RLS karena ini internal automation)
-    const supabase = getSupabaseAdmin();
-
-    // 4. Ambil data kontak menggunakan DAL yang sudah ada
-    // Kita set isSuperadmin: true agar filter tenant_id bisa kita tentukan sendiri via query param
-    const { data, error } = await listContacts(supabase, {
-      tenantId,
-      isSuperadmin: true,
-    });
-
-    if (error) {
-      console.error("[REMINDER_API] Error fetching contacts:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    if (!data) {
-      return NextResponse.json({ total: 0, contacts: [] });
-    }
-
-    // 5. Kembalikan semua data tamu untuk tenant tersebut
-    return NextResponse.json({
-      success: true,
-      tenantId,
-      total: data.length,
-      contacts: data,
-    });
   } catch (error: any) {
-    console.error("[REMINDER_API] Unexpected error:", error);
+    console.error("[REMINDER_API] Critical Error:", error); // Penting untuk debug
     return NextResponse.json(
-      { error: "Terjadi kesalahan pada server." },
+      { error: "Server configuration error" },
       { status: 500 }
     );
   }
