@@ -402,36 +402,35 @@ export default function Home() {
     } catch (error) {
       console.warn("[OFFLINE] Gagal simpan ke server, mencoba simpan ke antrean lokal.");
       
-      if (action === "checkin") {
-        const offlineItem: OfflineCheckin = {
-          localId: crypto.randomUUID(),
+      // Save any manual update to queue (includes check-in from modal or data changes)
+      const offlineItem: OfflineCheckin = {
+        localId: crypto.randomUUID(),
+        token: updated.token,
+        contact: {
+          id: updated.id,
+          nama: updated.nama,
+          nomor: updated.nomor,
+          priority: updated.priority,
+          kategori: updated.kategori,
+          is_sent: updated.is_sent,
+          is_present: updated.is_present,
+          present_at: updated.present_at,
           token: updated.token,
-          contact: {
-            id: updated.id,
-            nama: updated.nama,
-            nomor: updated.nomor,
-            priority: updated.priority,
-            kategori: updated.kategori,
-            is_sent: updated.is_sent,
-            is_present: updated.is_present,
-            present_at: updated.present_at,
-            token: updated.token,
-            added_via: updated.added_via
-          },
-          action: "checkin",
-          timestamp: Date.now(),
-          retryCount: 0
-        };
-        
-        await addToQueue(offlineItem);
-        setQueueSize(prev => prev + 1);
+          added_via: updated.added_via
+        },
+        action: action || "update", // Default action is update/upsert
+        timestamp: Date.now(),
+        retryCount: 0
+      };
+      
+      await addToQueue(offlineItem);
+      setQueueSize(prev => prev + 1);
+      if (updated.token) {
         setLocallyScannedTokens(prev => new Set(prev).add(updated.token));
-        setFeedback("Koneksi bermasalah. Data disimpan di antrean HP.");
-      } else {
-        const message = error instanceof Error ? error.message : "Gagal menyimpan.";
-        setErrorMessage(message);
-        handleLoadContacts();
       }
+      setFeedback("Koneksi bermasalah. Perubahan disimpan di antrean HP.");
+      setEditingContact(null);
+      setInitialEditingContact(null);
     }
   };
 
@@ -480,9 +479,26 @@ export default function Home() {
     }
 
     setIsSaving(true);
+    const tempId = Math.floor(Math.random() * -1000000);
+    const tempToken = `T-${Date.now()}`;
+    const finalNomor = newGuestData.nomor || `99${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+    
+    const newGuest: any = {
+      id: tempId,
+      nama: newGuestData.nama,
+      nomor: finalNomor,
+      priority: "Reguler",
+      kategori: "Manual",
+      added_via: "manual",
+      is_sent: true,
+      is_present: true,
+      present_at: new Date().toISOString(),
+      token: tempToken
+    };
+
     try {
-      // Jika nomor kosong, generate unique ID berbasis timestamp
-      const finalNomor = newGuestData.nomor || `99${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      // Optimistic UI update
+      setContacts(prev => [newGuest, ...prev]);
 
       const response = await fetch("/api/contacts", {
         method: "POST",
@@ -492,19 +508,18 @@ export default function Home() {
         },
         body: JSON.stringify({
           contacts: [{
-            nama: newGuestData.nama,
-            nomor: finalNomor,
-            priority: "Reguler",
-            kategori: "Manual",
-            added_via: "manual",
-            is_sent: true,
-            is_present: true,
-            present_at: new Date().toISOString()
+            nama: newGuest.nama,
+            nomor: newGuest.nomor,
+            priority: newGuest.priority,
+            kategori: newGuest.kategori,
+            added_via: newGuest.added_via,
+            is_present: newGuest.is_present,
+            present_at: newGuest.present_at
           }]
         }),
       });
 
-      if (!response.ok) throw new Error("Gagal menyimpan tamu");
+      if (!response.ok) throw new Error("Gagal menyimpan ke server");
 
       const result = await response.json();
       setContacts(result.contacts);
@@ -521,8 +536,32 @@ export default function Home() {
         });
       }
     } catch (err) {
-      console.error(err);
-      setErrorMessage("Gagal menambahkan tamu.");
+      console.warn("[OFFLINE] Gagal tambah tamu ke server, menyimpan ke antrean lokal.");
+      
+      const offlineItem: OfflineCheckin = {
+        localId: crypto.randomUUID(),
+        token: tempToken,
+        contact: {
+          nama: newGuest.nama,
+          nomor: newGuest.nomor,
+          priority: newGuest.priority,
+          kategori: newGuest.kategori,
+          added_via: newGuest.added_via,
+          is_present: newGuest.is_present,
+          present_at: newGuest.present_at
+        },
+        action: "add",
+        timestamp: Date.now(),
+        retryCount: 0
+      };
+
+      await addToQueue(offlineItem);
+      setQueueSize(prev => prev + 1);
+      setLocallyScannedTokens(prev => new Set(prev).add(tempToken));
+      
+      setFeedback("Koneksi bermasalah. Tamu baru disimpan di antrean HP.");
+      setIsAddingGuest(false);
+      setNewGuestData({ nama: "", nomor: "", priority: "Reguler", kategori: "-" });
     } finally {
       setIsSaving(false);
     }
