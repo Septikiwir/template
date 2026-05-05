@@ -201,7 +201,7 @@ export default function Home() {
   const channelRef = useRef<any>(null);
 
   const actualUsername = session?.user?.email?.split('@')[0] || 'tamu';
-  const computedLink = `https://nimantra.vercel.app/${actualUsername}/`;
+  const computedLink = `https://nimantra.vercel.app/${actualUsername}/v1/`;
 
   useEffect(() => {
     localStorage.setItem("wa_sender_sidebar_minimized", isSidebarMinimized.toString());
@@ -218,16 +218,16 @@ export default function Home() {
   // Handle initial hydration and cache loading
   useEffect(() => {
     setHasMounted(true);
-    
+
     const cachedContacts = localStorage.getItem("wa_sender_contacts");
     if (cachedContacts) setContacts(JSON.parse(cachedContacts));
-    
+
     const cachedView = localStorage.getItem("wa_sender_active_view");
     if (cachedView) setActiveView(cachedView as any);
-    
+
     const cachedSessionInfo = localStorage.getItem("wa_sender_session_info");
     if (cachedSessionInfo) setSessionInfo(JSON.parse(cachedSessionInfo));
-    
+
     const cachedMinimized = localStorage.getItem("wa_sender_sidebar_minimized");
     if (cachedMinimized) setIsSidebarMinimized(cachedMinimized === "true");
   }, []);
@@ -645,7 +645,7 @@ export default function Home() {
     const channel = supabase
       .channel(channelId)
     channelRef.current = channel;
-    
+
     channel
       // 1. Listen for Broadcast events (Instant)
       .on(
@@ -973,7 +973,7 @@ export default function Home() {
     const guestLink = finalLink
       .replace(/\{nama\}/g, encodeURIComponent(contact.nama))
       .replace(/\{id\}/g, contact.token);
-    
+
     navigator.clipboard.writeText(guestLink);
     setFeedback(`Link untuk ${contact.nama} telah disalin!`);
   };
@@ -2297,8 +2297,8 @@ export default function Home() {
                   <QRCodeSVG value={editingContact.token || "PENDING"} size={100} />
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
                     <span className={styles.editQrToken}>{editingContact.token || "—"}</span>
-                    <button 
-                      className={styles.miniBtnPrimary} 
+                    <button
+                      className={styles.miniBtnPrimary}
                       onClick={() => handleCopyGuestLink(editingContact)}
                       style={{ fontSize: '11px', padding: '4px 12px' }}
                     >
