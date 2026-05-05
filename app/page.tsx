@@ -774,6 +774,7 @@ export default function Home() {
         const info = { role: data.role, tenantId: data.tenantId ?? null };
         setSessionInfo(info);
         localStorage.setItem("wa_sender_session_info", JSON.stringify(info));
+        setActiveView("dashboard");
 
         if (data.role === "admin") {
           router.replace("/admin");
@@ -928,7 +929,7 @@ export default function Home() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setActiveView("send");
+    setActiveView("dashboard");
     setGuestbookQuery("");
   };
 
