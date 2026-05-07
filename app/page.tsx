@@ -992,7 +992,7 @@ export default function Home() {
     return () => {
       active = false;
     };
-  }, [session, router, sessionInfo]);
+  }, [session, router]);
 
   useEffect(() => {
     if (!session) {
@@ -2633,7 +2633,7 @@ export default function Home() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <input
                                 type="color"
-                                value={displayBgColor ?? "#e7d8a1"}
+                                value={displayBgColor || "#e7d8a1"}
                                 onChange={(e) => setDisplayBgColor(e.target.value)}
                                 onBlur={(e) => handleUpdateSettings({ display_bg_color: e.target.value })}
                                 style={{ width: '40px', height: '40px', border: 'none', borderRadius: '4px', cursor: isEditingDisplay ? 'pointer' : 'default' }}
