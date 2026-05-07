@@ -155,7 +155,7 @@ export default function Home() {
   const [bulkInput, setBulkInput] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [hasMounted, setHasMounted] = useState(false);
-  const [activeView, setActiveView] = useState<"dashboard" | "send" | "guestbook" | "scan">("dashboard");
+  const [activeView, setActiveView] = useState<"dashboard" | "send" | "guestbook" | "scan" | "display">("dashboard");
   const [guestbookQuery, setGuestbookQuery] = useState("");
   const [sentNomors, setSentNomors] = useState<string[]>([]);
   const [isFetching, setIsFetching] = useState(false);
@@ -177,6 +177,12 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [includeToken, setIncludeToken] = useState(true);
+  const [displayWelcomeText, setDisplayWelcomeText] = useState<string>("SELAMAT DATANG");
+  const [displayBgColor, setDisplayBgColor] = useState<string>("#e7d8a1");
+  const [displayBgType, setDisplayBgType] = useState<string>("color");
+  const [displayBgUrl, setDisplayBgUrl] = useState<string>("");
+  const [displayFontColor, setDisplayFontColor] = useState<string>("#333333");
+  const [displayShowVipBar, setDisplayShowVipBar] = useState<boolean>(true);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [isAddingGuest, setIsAddingGuest] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -204,6 +210,12 @@ export default function Home() {
   const [queueSize, setQueueSize] = useState(0);
   const [locallyScannedTokens, setLocallyScannedTokens] = useState<Set<string>>(new Set());
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pesanRef = useRef<HTMLTextAreaElement>(null);
+  const settingsSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isEditingDisplay, setIsEditingDisplay] = useState(false);
+  const [backupSettings, setBackupSettings] = useState<any>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
 
   const actualUsername = session?.user?.email?.split('@')[0] || 'tamu';
   const computedLink = `https://nimantra.vercel.app/${actualUsername}/v1/`;
@@ -349,7 +361,16 @@ export default function Home() {
         channelRef.current.send({
           type: "broadcast",
           event: "sync-data",
-          payload: { type: "CONTACTS_UPDATED", sender: session?.user?.id }
+          payload: {
+            type: "CONTACTS_UPDATED",
+            action: action || "mutation",
+            sender: session?.user?.id,
+            guest: updated ? {
+              name: updated.nama,
+              priority: updated.priority,
+              kategori: updated.kategori
+            } : null
+          }
         });
       }
     } catch (error) {
@@ -681,36 +702,207 @@ export default function Home() {
         setLink(data.settings.link);
         setPesan(data.settings.pesan);
         setIncludeToken(data.settings.include_token);
+        if (data.settings.display_welcome_text) setDisplayWelcomeText(data.settings.display_welcome_text);
+        if (data.settings.display_bg_color) setDisplayBgColor(data.settings.display_bg_color);
+        if (data.settings.display_bg_type) setDisplayBgType(data.settings.display_bg_type);
+        if (data.settings.display_bg_url) setDisplayBgUrl(data.settings.display_bg_url || "");
+        if (data.settings.display_font_color) setDisplayFontColor(data.settings.display_font_color);
+        if (data.settings.display_show_vip_bar !== undefined && data.settings.display_show_vip_bar !== null) {
+          setDisplayShowVipBar(!!data.settings.display_show_vip_bar);
+        }
       }
     } catch (err) {
       console.error("Load Settings Error:", err);
     }
   };
 
-  const handleUpdateSettings = async (updates: { link?: string; pesan?: string; include_token?: boolean }) => {
+  const handleUpdateSettings = (updates: {
+    link?: string;
+    pesan?: string;
+    include_token?: boolean;
+    display_welcome_text?: string;
+    display_bg_color?: string;
+    display_bg_type?: string;
+    display_bg_url?: string;
+    display_font_color?: string;
+    display_show_vip_bar?: boolean;
+  }) => {
     if (!session) return;
 
-    // Optimistic update
+    // 1. Instant Local State Update
     if (updates.link !== undefined) setLink(updates.link);
     if (updates.pesan !== undefined) setPesan(updates.pesan);
     if (updates.include_token !== undefined) setIncludeToken(updates.include_token);
+    if (updates.display_welcome_text !== undefined) setDisplayWelcomeText(updates.display_welcome_text);
+    if (updates.display_bg_color !== undefined) setDisplayBgColor(updates.display_bg_color);
+    if (updates.display_bg_type !== undefined) setDisplayBgType(updates.display_bg_type);
+    if (updates.display_bg_url !== undefined) setDisplayBgUrl(updates.display_bg_url || "");
+    if (updates.display_font_color !== undefined) setDisplayFontColor(updates.display_font_color || "#333333");
+    if (updates.display_show_vip_bar !== undefined) setDisplayShowVipBar(!!updates.display_show_vip_bar);
+
+    // 2. Debounced Sync (Database & Broadcast)
+    if (settingsSyncTimeoutRef.current) {
+      clearTimeout(settingsSyncTimeoutRef.current);
+    }
+
+    settingsSyncTimeoutRef.current = setTimeout(async () => {
+      try {
+        // Broadcast sync for instant reactivity on other screens
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "sync-data",
+            payload: {
+              type: "SETTINGS_UPDATED",
+              sender: session?.user?.id,
+              data: {
+                display_welcome_text: updates.display_welcome_text ?? (updates.display_welcome_text === undefined ? displayWelcomeText : updates.display_welcome_text),
+                display_bg_color: updates.display_bg_color ?? (updates.display_bg_color === undefined ? displayBgColor : updates.display_bg_color),
+                display_bg_type: updates.display_bg_type ?? (updates.display_bg_type === undefined ? displayBgType : updates.display_bg_type),
+                display_bg_url: updates.display_bg_url ?? (updates.display_bg_url === undefined ? displayBgUrl : updates.display_bg_url),
+                display_font_color: updates.display_font_color ?? (updates.display_font_color === undefined ? displayFontColor : updates.display_font_color),
+                display_show_vip_bar: updates.display_show_vip_bar ?? (updates.display_show_vip_bar === undefined ? displayShowVipBar : updates.display_show_vip_bar),
+              }
+            }
+          });
+        }
+
+        const response = await fetch("/api/settings", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            link: updates.link ?? link,
+            pesan: updates.pesan ?? pesan,
+            include_token: updates.include_token ?? includeToken,
+            display_welcome_text: updates.display_welcome_text ?? displayWelcomeText,
+            display_bg_color: updates.display_bg_color ?? displayBgColor,
+            display_bg_type: updates.display_bg_type ?? displayBgType,
+            display_bg_url: updates.display_bg_url ?? displayBgUrl,
+            display_font_color: updates.display_font_color ?? displayFontColor,
+            display_show_vip_bar: updates.display_show_vip_bar ?? displayShowVipBar,
+          }),
+        });
+
+        if (!response.ok) {
+          let errorText = "Unknown error";
+          try {
+            const errData = await response.json();
+            console.error("Save Settings Error Details (JSON):", errData);
+            errorText = errData.error || errData.message || JSON.stringify(errData);
+          } catch (e) {
+            errorText = await response.text();
+            console.error("Save Settings Error Details (Text):", errorText);
+          }
+          setErrorMessage("Gagal menyimpan konfigurasi: " + errorText);
+        } else {
+          console.log("Settings saved successfully");
+        }
+      } catch (err) {
+        console.error("Sync Settings Network Error:", err);
+        setErrorMessage("Gagal sinkronisasi pengaturan (Koneksi bermasalah)");
+      }
+    }, 500); // 500ms debounce
+  };
+
+  const handleStartEditDisplay = () => {
+      setBackupSettings({
+      display_welcome_text: displayWelcomeText,
+      display_bg_color: displayBgColor,
+      display_bg_type: displayBgType,
+      display_bg_url: displayBgUrl,
+      display_font_color: displayFontColor,
+      display_show_vip_bar: displayShowVipBar
+    });
+    setIsEditingDisplay(true);
+  };
+
+  const handleCancelEditDisplay = () => {
+    if (backupSettings) {
+      // Revert states
+      setDisplayWelcomeText(backupSettings.display_welcome_text);
+      setDisplayBgColor(backupSettings.display_bg_color || "#e7d8a1");
+      setDisplayBgType(backupSettings.display_bg_type || "color");
+      setDisplayBgUrl(backupSettings.display_bg_url || "");
+      setDisplayFontColor(backupSettings.display_font_color || "#333333");
+      setDisplayShowVipBar(!!backupSettings.display_show_vip_bar);
+      
+      // Sync back to DB and Broadcast
+      handleUpdateSettings(backupSettings);
+    }
+    setIsEditingDisplay(false);
+    setBackupSettings(null);
+  };
+
+  const handleUploadMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !session || !sessionInfo) return;
+
+    // Validate size (max 50MB for video)
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert("File terlalu besar (Maksimal 50MB)");
+      return;
+    }
 
     try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          link: updates.link ?? link,
-          pesan: updates.pesan ?? pesan,
-          include_token: updates.include_token ?? includeToken,
-        }),
-      });
-    } catch (err) {
-      console.error("Update Settings Error:", err);
+      setIsUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${sessionInfo.tenantId || session.user.id}_${Date.now()}.${fileExt}`;
+      const filePath = `display/${fileName}`;
+
+      // 1. Upload to Supabase Storage
+      // Catatan: Pastikan bucket 'display-media' sudah ada dan berstatus Public
+      const { data, error: uploadError } = await supabase.storage
+        .from('display-media')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) {
+        if (uploadError.message.includes("not found")) {
+          throw new Error("Bucket 'display-media' tidak ditemukan. Harap buat bucket 'display-media' (Public) di Dashboard Supabase Storage.");
+        }
+        throw uploadError;
+      }
+
+      // 2. Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('display-media')
+        .getPublicUrl(filePath);
+
+      // 3. Update Settings
+      setDisplayBgUrl(publicUrl);
+      handleUpdateSettings({ display_bg_url: publicUrl });
+      setFeedback("Media berhasil diunggah!");
+    } catch (err: any) {
+      console.error("Upload Error:", err);
+      setErrorMessage(err.message || "Gagal mengunggah media.");
+    } finally {
+      setIsUploading(false);
     }
+  };
+
+  const insertPlaceholder = (placeholder: string) => {
+    const textarea = pesanRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const currentPesan = pesan;
+    const newValue = currentPesan.substring(0, start) + placeholder + currentPesan.substring(end);
+
+    handleUpdateSettings({ pesan: newValue });
+
+    // Kembalikan fokus dan atur posisi kursor setelah insert
+    setTimeout(() => {
+      textarea.focus();
+      const newCursorPos = start + placeholder.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
   };
 
   // 2. Auth & Realtime Subscription
@@ -1522,6 +1714,15 @@ export default function Home() {
             </span>
             <span className={styles.sidebarLabel}>Scan QR</span>
           </button>
+          <button
+            className={`${styles.sidebarItem} ${activeView === "display" ? styles.sidebarItemActive : ""}`}
+            onClick={() => setActiveView("display")}
+          >
+            <span className={styles.sidebarIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
+            </span>
+            <span className={styles.sidebarLabel}>Display</span>
+          </button>
         </nav>
 
         {/* Main Content */}
@@ -1959,12 +2160,37 @@ export default function Home() {
                     <div className={styles.field}>
                       <label htmlFor="pesan" className={styles.label}>Template Pesan <span className={styles.req}>*</span></label>
                       <div className={styles.inputWrap}>
-                        <textarea id="pesan" className={styles.textarea} placeholder={"Halo {nama}, ini link undangan Anda: {link}"} value={pesan} onChange={(e) => handleUpdateSettings({ pesan: e.target.value })} />
+                        <textarea
+                          id="pesan"
+                          ref={pesanRef}
+                          className={styles.textarea}
+                          placeholder={"Halo {nama}, ini link undangan Anda: {link}"}
+                          value={pesan}
+                          onChange={(e) => handleUpdateSettings({ pesan: e.target.value })}
+                        />
                         <span className={`${styles.inputIcon} ${styles.inputIconTextarea}`}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
                         </span>
                       </div>
-                      <div className={styles.hint}>Gunakan <strong>{"{nama}"}</strong>, <strong>{"{link}"}</strong>.</div>
+                      <div className={styles.hint}>
+                        Gunakan:
+                        <button
+                          className={styles.placeholderBtn}
+                          onClick={() => insertPlaceholder("{nama}")}
+                          disabled={pesan.includes("{nama}")}
+                          type="button"
+                        >
+                          {"{nama}"}
+                        </button>
+                        <button
+                          className={styles.placeholderBtn}
+                          onClick={() => insertPlaceholder("{link}")}
+                          disabled={pesan.includes("{link}")}
+                          type="button"
+                        >
+                          {"{link}"}
+                        </button>
+                      </div>
                       {!pesan.trim() && <div className={styles.hintError}>Template pesan tidak boleh kosong.</div>}
                       {pesanMissingNama && <div className={styles.hintError}>Template harus mengandung <strong>{"{nama}"}</strong></div>}
                       {pesanMissingLink && <div className={styles.hintError}>Template harus mengandung <strong>{"{link}"}</strong></div>}
@@ -2224,6 +2450,276 @@ export default function Home() {
                   )}
                 </div>
               </>
+            ) : activeView === "display" ? (
+              <div className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <span className={styles.panelTitle}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
+                    Konfigurasi Layar Monitor (Display)
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {isEditingDisplay ? (
+                      <>
+                        <button
+                          className={styles.editToggleBtn}
+                          onClick={handleCancelEditDisplay}
+                          style={{ background: '#fee2e2', color: '#ef4444', borderColor: '#fecaca' }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                          Batal
+                        </button>
+                        <button
+                          className={`${styles.editToggleBtn} ${styles.editToggleBtnActive}`}
+                          onClick={() => {
+                            setIsEditingDisplay(false);
+                            setBackupSettings(null);
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><polyline points="20 6 9 17 4 12" /></svg>
+                          Selesai Edit
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className={`${styles.editToggleBtn} ${styles.editToggleBtnInactive}`}
+                        onClick={handleStartEditDisplay}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                        Edit Konfigurasi
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className={styles.panelBody} style={{ padding: '24px' }}>
+                  <div style={{ opacity: isEditingDisplay ? 1 : 0.7, pointerEvents: isEditingDisplay ? 'auto' : 'none', transition: 'all 0.3s ease' }}>
+                    {!isEditingDisplay && (
+                      <div style={{ background: '#f3f4f6', padding: '12px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                        Klik tombol <strong>Edit Konfigurasi</strong> untuk mulai mengubah tampilan monitor.
+                      </div>
+                    )}
+                    <div className={styles.configGrid}>
+                      <div className={styles.configItem} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '20px', marginBottom: '20px' }}>
+                        <label className={styles.configLabel}>Teks Sambutan Utama</label>
+                        <p className={styles.configDescription}>Pilih pesan yang akan muncul di bagian paling atas layar monitor.</p>
+                        <div className={styles.selectionGrid}>
+                          <button
+                            className={`${styles.selectionBtn} ${displayWelcomeText === "SELAMAT DATANG" ? styles.selectionBtnActive : ""}`}
+                            onClick={() => handleUpdateSettings({ display_welcome_text: "SELAMAT DATANG" })}
+                            disabled={!isEditingDisplay}
+                          >
+                            SELAMAT DATANG
+                          </button>
+                          <button
+                            className={`${styles.selectionBtn} ${displayWelcomeText === "TERIMA KASIH SUDAH HADIR" ? styles.selectionBtnActive : ""}`}
+                            onClick={() => handleUpdateSettings({ display_welcome_text: "TERIMA KASIH SUDAH HADIR" })}
+                            disabled={!isEditingDisplay}
+                          >
+                            TERIMA KASIH
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className={styles.configItem} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '20px', marginBottom: '20px' }}>
+                        <label className={styles.configLabel}>Tipe Latar Belakang (Background)</label>
+                        <p className={styles.configDescription}>Pilih jenis latar belakang yang ingin ditampilkan di monitor.</p>
+                        <div className={styles.segmentedControl}>
+                          {['color', 'image', 'video'].map(type => (
+                            <button
+                              key={type}
+                              className={`${styles.segmentedItem} ${displayBgType === type ? styles.segmentedItemActive : ''}`}
+                              onClick={() => handleUpdateSettings({ display_bg_type: type })}
+                              disabled={!isEditingDisplay}
+                            >
+                              {type === 'color' ? 'Warna' : type === 'image' ? 'Gambar' : 'Video'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className={styles.configItem} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '20px', marginBottom: '20px' }}>
+                        <label className={styles.configLabel}>Warna Font (Tulisan)</label>
+                        <p className={styles.configDescription}>Pilih warna tulisan agar terlihat kontras dengan background.</p>
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
+                          {[
+                            { name: 'Gelap (Standard)', value: '#333333' },
+                            { name: 'Putih Bersih', value: '#ffffff' },
+                            { name: 'Emas (Luxury)', value: '#d4af37' }
+                          ].map(preset => (
+                            <button
+                              key={preset.value}
+                              className={styles.colorPresetBtn}
+                              style={{ 
+                                background: preset.value,
+                                border: displayFontColor === preset.value ? '3px solid var(--accent-primary)' : '1px solid #e5e7eb',
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: ['#ffffff', '#d4af37'].includes(preset.value) ? '#333' : 'white',
+                                minWidth: '110px',
+                                opacity: isEditingDisplay ? 1 : 0.8
+                              }}
+                              onClick={() => handleUpdateSettings({ display_font_color: preset.value })}
+                              disabled={!isEditingDisplay}
+                            >
+                              {preset.name}
+                            </button>
+                          ))}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <input 
+                              type="color" 
+                              value={displayFontColor || "#333333"} 
+                              onChange={(e) => setDisplayFontColor(e.target.value)}
+                              onBlur={(e) => handleUpdateSettings({ display_font_color: e.target.value })}
+                              style={{ width: '40px', height: '40px', border: 'none', borderRadius: '4px', cursor: isEditingDisplay ? 'pointer' : 'default' }}
+                              disabled={!isEditingDisplay}
+                            />
+                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Custom</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={styles.configItem} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '20px', marginBottom: '20px' }}>
+                        <div className={styles.toggleLabel}>
+                          <span className={styles.toggleTitle}>Tampilkan Bar Kategori/Status</span>
+                          <span className={styles.toggleDesc}>Menampilkan atau menyembunyikan teks status (seperti TAMU VVIP) di bagian bawah layar monitor.</span>
+                        </div>
+                        <div style={{ marginTop: '12px' }}>
+                          <label className={styles.switch} style={{ opacity: isEditingDisplay ? 1 : 0.5 }}>
+                            <input
+                              type="checkbox"
+                              checked={displayShowVipBar}
+                              onChange={(e) => handleUpdateSettings({ display_show_vip_bar: e.target.checked })}
+                              disabled={!isEditingDisplay}
+                            />
+                            <span className={styles.slider}></span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {displayBgType === 'color' ? (
+                        <div className={styles.configItem} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '20px', marginBottom: '20px' }}>
+                          <label className={styles.configLabel}>Warna Background</label>
+                          <p className={styles.configDescription}>Pilih warna latar belakang untuk menyesuaikan tema acara Anda.</p>
+                          <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
+                            {[
+                              { name: 'Cream (Default)', value: '#e7d8a1' },
+                              { name: 'Sage Green', value: '#d4e1cf' },
+                              { name: 'Dusty Rose', value: '#e1cfcf' },
+                              { name: 'Midnight', value: '#2c3e50' },
+                              { name: 'Sky Blue', value: '#d0e1f9' }
+                            ].map(preset => (
+                              <button
+                                key={preset.value}
+                                className={styles.colorPresetBtn}
+                                style={{
+                                  background: preset.value,
+                                  border: displayBgColor === preset.value ? '3px solid var(--accent-primary)' : '2px solid transparent',
+                                  padding: '8px 16px',
+                                  borderRadius: '8px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  color: ['#2c3e50'].includes(preset.value) ? 'white' : '#333',
+                                  minWidth: '100px',
+                                  opacity: isEditingDisplay ? 1 : 0.8
+                                }}
+                                onClick={() => handleUpdateSettings({ display_bg_color: preset.value })}
+                                disabled={!isEditingDisplay}
+                              >
+                                {preset.name}
+                              </button>
+                            ))}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                type="color"
+                                value={displayBgColor ?? "#e7d8a1"}
+                                onChange={(e) => setDisplayBgColor(e.target.value)}
+                                onBlur={(e) => handleUpdateSettings({ display_bg_color: e.target.value })}
+                                style={{ width: '40px', height: '40px', border: 'none', borderRadius: '4px', cursor: isEditingDisplay ? 'pointer' : 'default' }}
+                                disabled={!isEditingDisplay}
+                              />
+                              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Custom Color</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={styles.configItem} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '20px', marginBottom: '20px' }}>
+                          <label className={styles.configLabel}>URL {displayBgType === 'image' ? 'Gambar' : 'Video'}</label>
+                          <p className={styles.configDescription}>Masukkan link/URL langsung (direct link) ke file {displayBgType}.</p>
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                            <input
+                              type="text"
+                              className={styles.input}
+                              placeholder={displayBgType === 'image' ? "Contoh: https://website.com/foto-wedding.jpg" : "Contoh: https://website.com/video-cinematic.mp4"}
+                              value={displayBgUrl || ""}
+                              onChange={(e) => setDisplayBgUrl(e.target.value)}
+                              onBlur={(e) => handleUpdateSettings({ display_bg_url: e.target.value })}
+                              style={{ flex: 1 }}
+                              disabled={!isEditingDisplay || isUploading}
+                            />
+                            <div style={{ position: 'relative' }}>
+                              <input
+                                type="file"
+                                id="mediaUpload"
+                                accept={displayBgType === 'image' ? "image/*" : "video/mp4"}
+                                style={{ display: 'none' }}
+                                onChange={handleUploadMedia}
+                                disabled={!isEditingDisplay || isUploading}
+                              />
+                              <label
+                                htmlFor="mediaUpload"
+                                className={styles.btnSecondary}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  padding: '10px 16px',
+                                  fontSize: '13px',
+                                  cursor: isEditingDisplay && !isUploading ? 'pointer' : 'default',
+                                  opacity: isEditingDisplay && !isUploading ? 1 : 0.6,
+                                  background: isUploading ? '#f3f4f6' : 'white'
+                                }}
+                              >
+                                {isUploading ? (
+                                  <>
+                                    <div className={styles.spinner} style={{ width: 14, height: 14, border: '2px solid #ccc', borderTopColor: 'var(--accent-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                                    Unggah...
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                                    Upload
+                                  </>
+                                )}
+                              </label>
+                            </div>
+                          </div>
+                          <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '8px' }}>
+                            Maksimal ukuran file: 50MB. Gunakan format {displayBgType === 'image' ? 'JPG/PNG' : 'MP4'}.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={styles.configItem} style={{ background: 'var(--bg-secondary)', padding: '20px', borderRadius: '12px', marginTop: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <label className={styles.configLabel} style={{ marginBottom: '4px' }}>Buka Layar Monitor</label>
+                        <p className={styles.configDescription}>Klik tombol di samping untuk membuka halaman monitor display pada tab baru.</p>
+                      </div>
+                      <button
+                        className={styles.openDisplayBtn}
+                        onClick={() => window.open("/display", "_blank")}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                        Buka Monitor Display
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : (
               <>
                 <ScannerView
@@ -2368,6 +2864,12 @@ export default function Home() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg>
           </span>
           Scan QR
+        </button>
+        <button className={`${styles.bottomNavItem} ${activeView === "display" ? styles.bottomNavItemActive : ""}`} onClick={() => setActiveView("display")}>
+          <span className={styles.bottomNavIcon}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
+          </span>
+          Display
         </button>
       </nav>
 

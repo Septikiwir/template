@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await context.supabase
       .from("settings")
-      .select("link, pesan, include_token")
+      .select("link, pesan, include_token, display_welcome_text, display_bg_color, display_bg_type, display_bg_url, display_font_color, display_show_vip_bar")
       .eq("tenant_id", context.tenantId)
       .single();
 
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     }
 
     const payload = await request.json();
-    const { link, pesan, include_token } = payload;
+    const { link, pesan, include_token, display_welcome_text, display_bg_color, display_bg_type, display_bg_url, display_font_color, display_show_vip_bar } = payload;
 
     const { data, error } = await context.supabase
       .from("settings")
@@ -50,6 +50,12 @@ export async function POST(request: Request) {
         link,
         pesan,
         include_token,
+        display_welcome_text,
+        display_bg_color,
+        display_bg_type,
+        display_bg_url,
+        display_font_color,
+        display_show_vip_bar,
         updated_at: new Date().toISOString(),
       })
       .select()

@@ -295,10 +295,21 @@ export async function POST(request: Request) {
       const channel = supabase.channel(`sync:${context.tenantId}`);
       channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
+          // Get the last checked-in guest from this request for the display
+          const lastCheckedIn = checkinTargets[checkinTargets.length - 1];
           channel.send({
             type: 'broadcast',
             event: 'sync-data',
-            payload: { type: 'CONTACTS_UPDATED', action: 'checkin', sender: context.userId }
+            payload: { 
+              type: 'CONTACTS_UPDATED', 
+              action: 'checkin', 
+              sender: context.userId,
+              guest: lastCheckedIn ? {
+                name: lastCheckedIn.nama,
+                priority: lastCheckedIn.priority,
+                kategori: lastCheckedIn.kategori
+              } : null
+            }
           });
         }
       });

@@ -1320,6 +1320,136 @@
   border-style: dashed;
 }
 
+/* ─── Display Config UI ─── */
+.selectionGrid {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.selectionBtn {
+  flex: 1;
+  padding: 14px;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  background: white;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.selectionBtnActive {
+  border-color: var(--accent-primary);
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  box-shadow: 0 0 0 1px var(--accent-primary);
+}
+
+.segmentedControl {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.segmentedItem {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmentedItemActive {
+  background: white;
+  color: #111827;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.colorPresetBtn {
+  border-radius: 10px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.colorPresetBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* ─── Premium Edit Toggle Button ─── */
+.editToggleBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1.5px solid transparent;
+}
+
+.editToggleBtnInactive {
+  background: white;
+  border-color: #e5e7eb;
+  color: #374151;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.editToggleBtnInactive:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+}
+
+.editToggleBtnActive {
+  background: #10b981; /* Green success/active */
+  color: white;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.editToggleBtnActive:hover {
+  background: #059669;
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+/* ─── Open Display Premium Button ─── */
+.openDisplayBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+}
+
+.openDisplayBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
+  filter: brightness(1.05);
+}
+
+.openDisplayBtn:active {
+  transform: translateY(0);
+}
+
 .contactRowSent .contactName {
   text-decoration: line-through;
   color: var(--text-hint);
@@ -3738,3 +3868,32 @@
   background: rgba(251, 191, 36, 0.2) !important;
   border-color: #fbbf24 !important;
 }
+
+.placeholderBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin: 0 4px;
+}
+
+.placeholderBtn:hover:not(:disabled) {
+  background: var(--accent-light);
+  border-color: var(--accent);
+}
+
+.placeholderBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface2);
+  color: var(--text-hint);
+  border-style: dashed;
+}
