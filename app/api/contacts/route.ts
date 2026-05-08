@@ -307,7 +307,8 @@ export async function POST(request: Request) {
               guest: lastCheckedIn ? {
                 name: lastCheckedIn.nama,
                 priority: lastCheckedIn.priority,
-                kategori: lastCheckedIn.kategori
+                kategori: lastCheckedIn.kategori,
+                is_present: true
               } : null
             }
           });

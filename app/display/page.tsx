@@ -99,7 +99,7 @@ export default function DisplayPage() {
             console.log("[DISPLAY] Broadcast received:", payload);
             const { type, action, guest: guestPayload, data: settingsPayload } = payload.payload;
             
-            if (type === "CONTACTS_UPDATED" && (action === "checkin" || action === "mutation") && guestPayload) {
+            if (type === "CONTACTS_UPDATED" && (action === "checkin" || action === "mutation") && guestPayload && guestPayload.is_present) {
               setGuest({
                 name: guestPayload.name,
                 category: guestPayload.kategori || guestPayload.category,

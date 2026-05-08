@@ -368,7 +368,8 @@ export default function Home() {
             guest: updated ? {
               name: updated.nama,
               priority: updated.priority,
-              kategori: updated.kategori
+              kategori: updated.kategori,
+              is_present: updated.is_present
             } : null
           }
         });
@@ -600,7 +601,17 @@ export default function Home() {
         channelRef.current.send({
           type: "broadcast",
           event: "sync-data",
-          payload: { type: "CONTACTS_UPDATED", sender: session?.user?.id }
+          payload: { 
+            type: "CONTACTS_UPDATED", 
+            action: "mutation",
+            sender: session?.user?.id,
+            guest: newGuest ? {
+              name: newGuest.nama,
+              priority: newGuest.priority,
+              kategori: newGuest.kategori,
+              is_present: newGuest.is_present
+            } : null
+          }
         });
       }
     } catch (err) {
@@ -3195,6 +3206,11 @@ function ScannerView({
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [zoomRange, setZoomRange] = useState<{ min: number, max: number, step: number } | null>(null);
   const [currentZoom, setCurrentZoom] = useState(1);
+  
+  // Hardware Scanner States
+  const [scanMethod, setScanMethod] = useState<"camera" | "hardware">("camera");
+  const [hwInput, setHwInput] = useState("");
+  const hwInputRef = useRef<HTMLInputElement>(null);
 
   const toggleCamera = () => {
     setFacingMode(prev => (prev === "environment" ? "user" : "environment"));
@@ -3238,6 +3254,26 @@ function ScannerView({
     setIsCameraEnabled(!isCameraEnabled);
   };
 
+  // Auto-focus hardware scanner input
+  useEffect(() => {
+    if (scanMethod === "hardware" && !scannedContact && isVisible) {
+      const focusInterval = setInterval(() => {
+        if (hwInputRef.current && document.activeElement !== hwInputRef.current) {
+          hwInputRef.current.focus();
+        }
+      }, 500);
+      return () => clearInterval(focusInterval);
+    }
+  }, [scanMethod, scannedContact, isVisible]);
+
+  const handleHwSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (hwInput.trim()) {
+      onScanSuccess(hwInput.trim());
+      setHwInput("");
+    }
+  };
+
   useEffect(() => {
     const handleVisibilityChange = () => setIsVisible(!document.hidden);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -3245,7 +3281,7 @@ function ScannerView({
   }, []);
 
   useEffect(() => {
-    if (scannedContact || !isCameraEnabled || !isVisible) return;
+    if (scannedContact || !isCameraEnabled || !isVisible || scanMethod === "hardware") return;
 
     let cancelled = false;
     const startDelay = setTimeout(() => {
@@ -3308,7 +3344,7 @@ function ScannerView({
       }
       scannerRef.current = null;
     };
-  }, [scannedContact, facingMode, isCameraEnabled, isVisible]);
+  }, [scannedContact, facingMode, isCameraEnabled, isVisible, scanMethod]);
 
   // Auto-dismiss after scan: 1s for regular, 3s for VIP
   useEffect(() => {
@@ -3323,12 +3359,34 @@ function ScannerView({
 
   return (
     <div className={`${styles.scannerView} ${isMaximized ? styles.scannerViewMaximized : ""}`}>
-      <h2 className={styles.pageTitle}>
-        {scannedContact ? "Konfirmasi Kehadiran" : "Scan QR Code Tamu"}
-      </h2>
-      <p className={styles.pageSubtitle}>
-        {scannedContact ? "Tamu berhasil dipindai." : "Arahkan kamera ke QR Code tamu untuk check-in."}
-      </p>
+      <div className={styles.scannerHeaderRow}>
+        <div style={{ flex: 1 }}>
+          <h2 className={styles.pageTitle}>
+            {scannedContact ? "Konfirmasi Kehadiran" : scanMethod === "camera" ? "Scan QR Code Tamu" : "Hardware Scanner Mode"}
+          </h2>
+          <p className={styles.pageSubtitle}>
+            {scannedContact ? "Tamu berhasil dipindai." : scanMethod === "camera" ? "Arahkan kamera ke QR Code tamu." : "Silakan scan QR code menggunakan alat scanner Anda."}
+          </p>
+        </div>
+        {!scannedContact && (
+          <div className={styles.methodToggle}>
+            <button 
+              className={`${styles.methodBtn} ${scanMethod === "camera" ? styles.methodBtnActive : ""}`}
+              onClick={() => setScanMethod("camera")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+              Kamera
+            </button>
+            <button 
+              className={`${styles.methodBtn} ${scanMethod === "hardware" ? styles.methodBtnActive : ""}`}
+              onClick={() => setScanMethod("hardware")}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
+              Hardware
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className={styles.scannerContainer}>
         {scannedContact ? (
@@ -3350,7 +3408,7 @@ function ScannerView({
               Terima Tamu Berikutnya
             </button>
           </div>
-        ) : (
+        ) : scanMethod === "camera" ? (
           <div className={styles.readerWrapper}>
             <div className={styles.scannerActions}>
               <button
@@ -3438,7 +3496,32 @@ function ScannerView({
                 <span className={styles.zoomValue}>{currentZoom.toFixed(1)}x</span>
               </div>
             )}
-
+          </div>
+        ) : (
+          <div className={styles.hwScannerWrapper}>
+            <div className={styles.hwScannerIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 48, height: 48, color: "var(--accent-primary)" }}>
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+            </div>
+            <form onSubmit={handleHwSubmit} className={styles.hwScannerForm}>
+              <input
+                ref={hwInputRef}
+                type="text"
+                className={styles.hwInput}
+                placeholder="Scan QR Code..."
+                value={hwInput}
+                onChange={(e) => setHwInput(e.target.value)}
+                autoComplete="off"
+              />
+              <p className={styles.hwHint}>Sistem akan otomatis memproses saat alat scanner menekan Enter.</p>
+            </form>
+            <div className={styles.hwPulse}>
+              <div className={styles.pulseRing}></div>
+              <span className={styles.pulseText}>Listening for scanner...</span>
+            </div>
           </div>
         )}
       </div>
