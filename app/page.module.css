@@ -1683,25 +1683,35 @@
 /* Table head — always visible with sort */
 .egmsTableHead {
   display: grid;
-  grid-template-columns: 36px 1fr 70px 90px 80px 100px;
+  grid-template-columns: 1fr 72px 130px;
   align-items: center;
   padding: 10px 12px;
-  gap: 6px;
+  gap: 4px;
   background: #f9fafb;
   border-bottom: 1px solid #e5e7eb;
   border-radius: 12px 12px 0 0;
-  min-width: 650px;
+  min-width: 0;
 }
 
 /* Row layout — grid on all sizes */
 .egmsRow {
   display: grid;
-  grid-template-columns: 36px 1fr 70px 90px 80px 100px;
+  grid-template-columns: 1fr 72px 130px;
   align-items: center;
   padding: 10px 12px;
-  gap: 6px;
+  gap: 4px;
   border-bottom: 1px solid var(--border);
-  min-width: 650px;
+  min-width: 0;
+}
+
+/* ─── Mobile: sembunyikan kolom No, Priority & Kategori ─── */
+.egmsTableHead .egmsColNo,
+.egmsTableHead .egmsColPriority,
+.egmsTableHead .egmsColKategori,
+.egmsRow .egmsColNo,
+.egmsRow .egmsColPriority,
+.egmsRow .egmsColKategori {
+  display: none;
 }
 
 .egmsRow:last-of-type {
@@ -1716,7 +1726,8 @@
 .actionCell {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-end;
+  gap: 2px;
 }
 
 .egmsCellStrong {
@@ -1728,10 +1739,7 @@
   word-break: break-word;
 }
 
-/* Mobile: show number cell */
-.egmsRow>.egmsCell:first-child {
-  display: block;
-}
+/* Mobile: number cell is hidden */
 
 .egmsHeadCell {
   font-size: 12px;
@@ -1745,14 +1753,18 @@
   user-select: none;
 }
 
+.egmsTableHead > .egmsHeadCell:last-child {
+  justify-content: flex-end;
+}
+
 .actionBtn {
   background: none;
   border: none;
   color: var(--text-hint);
   cursor: pointer;
-  padding: var(--space-1);
-  min-width: 44px;
-  min-height: 44px;
+  padding: 4px;
+  min-width: 38px;
+  min-height: 38px;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -1766,22 +1778,59 @@
   color: var(--accent-dark);
 }
 
+/* (Tombol CheckIn mobile-only sekarang menggunakan base class .actionBtn dan warna inline) */
+
 /* Tablet+ table layout — wider columns */
 @media (min-width: 640px) {
   .egmsTableHead {
     grid-template-columns: 40px 1fr 80px 120px 90px 100px;
     padding: 12px 14px;
     gap: 8px;
+    min-width: 650px;
   }
 
   .egmsRow {
     grid-template-columns: 40px 1fr 80px 120px 90px 100px;
     padding: 12px 14px;
     gap: 8px;
+    min-width: 650px;
   }
 
   .egmsCellStrong {
     font-size: 14px;
+  }
+
+  /* Tablet+: tampilkan kembali kolom No, Priority & Kategori */
+  .egmsTableHead .egmsColNo,
+  .egmsTableHead .egmsColPriority,
+  .egmsTableHead .egmsColKategori {
+    display: flex;
+  }
+
+  .egmsRow .egmsColNo,
+  .egmsRow .egmsColPriority,
+  .egmsRow .egmsColKategori {
+    display: block;
+  }
+
+  .actionCell {
+    justify-content: flex-start;
+    gap: 4px;
+  }
+
+  .egmsTableHead > .egmsHeadCell:last-child {
+    justify-content: flex-start;
+  }
+
+  .actionBtn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: var(--space-1);
+  }
+
+  /* Sembunyikan quick checkin di layar tablet/desktop */
+  .mobileOnlyCheckin {
+    display: none;
   }
 }
 

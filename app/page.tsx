@@ -2342,10 +2342,10 @@ export default function Home() {
                 <div className={styles.panel}>
                   <div className={styles.egmsTable}>
                     <div className={styles.egmsTableHead}>
-                      <span className={styles.egmsHeadCell}>No</span>
+                      <span className={`${styles.egmsHeadCell} ${styles.egmsColNo}`}>No</span>
                       <span className={styles.egmsHeadCell} onClick={() => toggleSort('nama')} style={{ cursor: 'pointer' }}>Nama Tamu {getSortIcon('nama')}</span>
-                      <span className={styles.egmsHeadCell} onClick={() => toggleSort('priority')} style={{ cursor: 'pointer' }}>Priority {getSortIcon('priority')}</span>
-                      <span className={styles.egmsHeadCell} onClick={() => toggleSort('kategori')} style={{ cursor: 'pointer' }}>Kategori {getSortIcon('kategori')}</span>
+                      <span className={`${styles.egmsHeadCell} ${styles.egmsColPriority}`} onClick={() => toggleSort('priority')} style={{ cursor: 'pointer' }}>Priority {getSortIcon('priority')}</span>
+                      <span className={`${styles.egmsHeadCell} ${styles.egmsColKategori}`} onClick={() => toggleSort('kategori')} style={{ cursor: 'pointer' }}>Kategori {getSortIcon('kategori')}</span>
                       <span className={styles.egmsHeadCell} onClick={() => toggleSort('is_present')} style={{ cursor: 'pointer' }}>Status {getSortIcon('is_present')}</span>
                       <span className={styles.egmsHeadCell}>Action</span>
                     </div>
@@ -2359,14 +2359,14 @@ export default function Home() {
                       const globalIndex = (currentPage - 1) * rowsPerPage + index + 1;
                       return (
                         <div key={contact.id} className={styles.egmsRow}>
-                          <span className={styles.egmsCell}>{globalIndex}</span>
+                          <span className={`${styles.egmsCell} ${styles.egmsColNo}`}>{globalIndex}</span>
                           <div className={styles.egmsCellStrong}>{contact.nama}</div>
-                          <div className={styles.egmsCell}>
+                          <div className={`${styles.egmsCell} ${styles.egmsColPriority}`}>
                             <span className={`${styles.priorityBadge} ${styles['prio' + contact.priority]}`}>
                               {contact.priority}
                             </span>
                           </div>
-                          <div className={styles.egmsCell}>
+                          <div className={`${styles.egmsCell} ${styles.egmsColKategori}`}>
                             {(() => {
                               const colors = getCategoryColor(contact.kategori);
                               return (
@@ -2383,6 +2383,27 @@ export default function Home() {
                             {contact.is_present ? <span className={styles.statusHadir}>Hadir</span> : isSent ? <span className={styles.statusSent}>Terkirim</span> : <span className={styles.statusPending}>Belum</span>}
                           </div>
                           <div className={styles.actionCell}>
+                            {/* Quick CheckIn — mobile only, hidden when already present */}
+                            {!contact.is_present && (
+                              <button
+                                className={`${styles.actionBtn} ${styles.mobileOnlyCheckin}`}
+                                title="Check-in Tamu"
+                                style={{ color: "#10b981" }}
+                                onClick={async () => {
+                                  const now = new Date().toISOString();
+                                  const updated = { ...contact, is_present: true, present_at: now };
+                                  const isVip = contact.priority?.toUpperCase() === "VIP" || contact.priority?.toUpperCase() === "VVIP";
+                                  playSound(isVip ? "vip" : "success");
+                                  await handleUpdateContact(updated, "checkin");
+                                  setFeedback(`✓ ${contact.nama} berhasil check-in!`);
+                                }}
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                              </button>
+                            )}
                             <button className={styles.actionBtn} onClick={() => handleStartEdit(contact)} title="Edit Tamu">
                               <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
