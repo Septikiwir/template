@@ -213,12 +213,6 @@ export default function DisplayPage() {
           {guest ? (
             <>
               {guest.name.toUpperCase()}
-              {guest.category && guest.category !== "-" && (
-                <>
-                  <br />
-                  <span className={styles.category}>({guest.category.toUpperCase()})</span>
-                </>
-              )}
             </>
           ) : (
             "MENUNGGU TAMU..."

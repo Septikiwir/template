@@ -702,7 +702,7 @@ export default function Home() {
 
 
 
-  const handleLoadSettings = async () => {
+  const handleLoadSettings = useCallback(async () => {
     if (!session) return;
     try {
       const response = await fetch("/api/settings", {
@@ -725,7 +725,7 @@ export default function Home() {
     } catch (err) {
       console.error("Load Settings Error:", err);
     }
-  };
+  }, [session]);
 
   const handleUpdateSettings = (updates: {
     link?: string;
@@ -1006,28 +1006,24 @@ export default function Home() {
   }, [session, router]);
 
   useEffect(() => {
-    if (!session) {
-      setContacts([]);
-      return;
-    }
-
-    if (!sessionInfo) {
+    if (!session || !sessionInfo) {
+      if (!session) setContacts([]);
       return;
     }
 
     // Ambil data awal
-    console.log("[DEBUG] Session & SessionInfo ready, loading initial data");
+    console.log("[DEBUG] Session & SessionInfo ready, establishing realtime connection");
     handleLoadContacts();
     handleLoadSettings();
 
+    const tenantId = sessionInfo.tenantId ?? session?.user?.id;
     const tenantFilter = sessionInfo.tenantId
       ? `tenant_id=eq.${sessionInfo.tenantId}`
       : `user_id=eq.${session?.user?.id}`;
 
     // Pasang pendengar Realtime terpadu
-    const channelId = `sync:${sessionInfo.tenantId ?? session?.user?.id}`;
-    const channel = supabase
-      .channel(channelId)
+    const channelId = `sync:${tenantId}`;
+    const channel = supabase.channel(channelId);
     channelRef.current = channel;
 
     channel
@@ -1095,7 +1091,7 @@ export default function Home() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session, sessionInfo]);
+  }, [session?.user?.id, sessionInfo?.tenantId, handleLoadContacts, handleLoadSettings]);
 
   // 3. Local Storage Sync
   useEffect(() => {

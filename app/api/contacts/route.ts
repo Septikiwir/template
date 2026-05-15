@@ -291,30 +291,6 @@ export async function POST(request: Request) {
 
       if (selectError) throw selectError;
 
-      // Broadcast change
-      const channel = supabase.channel(`sync:${context.tenantId}`);
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          // Get the last checked-in guest from this request for the display
-          const lastCheckedIn = checkinTargets[checkinTargets.length - 1];
-          channel.send({
-            type: 'broadcast',
-            event: 'sync-data',
-            payload: { 
-              type: 'CONTACTS_UPDATED', 
-              action: 'checkin', 
-              sender: context.userId,
-              guest: lastCheckedIn ? {
-                name: lastCheckedIn.nama,
-                priority: lastCheckedIn.priority,
-                kategori: lastCheckedIn.kategori,
-                is_present: true
-              } : null
-            }
-          });
-        }
-      });
-
       return NextResponse.json({ 
         contacts: data ?? [],
         savedCount: checkinTargets.length
@@ -383,22 +359,10 @@ export async function POST(request: Request) {
       throw selectError;
     }
 
-    // Broadcast change
-    const channel = supabase.channel(`sync:${context.tenantId}`);
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'sync-data',
-          payload: { type: 'CONTACTS_UPDATED', action: 'mutation', sender: context.userId }
-        });
-      }
-    });
-
-    return NextResponse.json({ 
-      contacts: data ?? [],
-      savedCount: dedupedByNomor.length
-    });
+      return NextResponse.json({ 
+        contacts: data ?? [],
+        savedCount: dedupedByNomor.length
+      });
   } catch (error: any) {
     const errorMessage = error.message || error.details || "Terjadi kesalahan pada server.";
     const status = getErrorStatus(errorMessage);
@@ -436,19 +400,7 @@ export async function DELETE(request: Request) {
       throw error;
     }
 
-    // Broadcast change
-    const channel = supabase.channel(`sync:${context.tenantId}`);
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'sync-data',
-          payload: { type: 'CONTACTS_UPDATED', action: 'delete', id, sender: context.userId }
-        });
-      }
-    });
-
-    return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true });
   } catch (error: any) {
     const errorMessage = error.message || "Gagal menghapus kontak.";
     const status = getErrorStatus(errorMessage);

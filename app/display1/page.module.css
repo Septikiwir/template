@@ -1,0 +1,237 @@
+.body {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-playfair), serif;
+  background-color: #000;
+  position: relative;
+}
+
+/* --- TOP SECTION --- */
+.topSection {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.bgPhoto {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.8; /* Darker look as per reference */
+  z-index: 0;
+}
+
+.topLogos {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  width: 100%;
+  padding: 0 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  z-index: 10;
+}
+
+.logoLeft {
+  height: 60px;
+  filter: invert(1); /* Assuming black logo needs to be white */
+}
+
+.logoRight {
+  height: 80px;
+}
+
+.mainContent {
+  position: relative;
+  z-index: 5;
+  text-align: center;
+  color: #fff;
+  width: 90%;
+}
+
+.welcomeText {
+  font-size: 2.2rem;
+  margin-bottom: 2rem;
+  text-decoration: underline;
+  text-underline-offset: 12px;
+  text-decoration-thickness: 1px;
+  letter-spacing: 0.1rem;
+  font-weight: 400;
+}
+
+.guestName {
+  font-size: 7rem;
+  font-weight: 500;
+  letter-spacing: 0.05rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+  animation: nameEntry 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes nameEntry {
+  0% { opacity: 0; transform: translateY(30px); filter: blur(10px); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+/* --- BOTTOM SECTION --- */
+.footerSection {
+  height: 140px;
+  background-color: #fff;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  border-top: 1px solid #eee;
+}
+
+.footerDecorationLeft, .footerDecorationRight {
+  position: absolute;
+  bottom: 0;
+  width: 200px;
+  opacity: 0.7;
+}
+
+.footerDecorationLeft {
+  left: 0;
+  transform: scaleX(-1);
+}
+
+.footerDecorationRight {
+  right: 0;
+}
+
+.footerContent {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  position: relative;
+  z-index: 25;
+}
+
+.eventDate {
+  font-size: 1.4rem;
+  color: #8b7355;
+  letter-spacing: 0.2rem;
+  width: 200px;
+}
+
+.eventTitle {
+  text-align: center;
+}
+
+.theWeddingOf {
+  display: block;
+  font-size: 0.9rem;
+  color: #999;
+  letter-spacing: 0.3rem;
+  text-transform: uppercase;
+  margin-bottom: 0.2rem;
+}
+
+.coupleNames {
+  font-size: 2.8rem;
+  color: #444;
+  margin: 0;
+  font-weight: 500;
+}
+
+.partnerLogosLeft {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  position: relative;
+  z-index: 30;
+}
+
+.partnerLogosLeft .eventDate {
+  position: absolute;
+  top: 50%;
+  left: 200px;
+  transform: translate(-50%, -50%);
+  z-index: 35;
+  width: auto;
+  text-align: center;
+  margin: 0;
+}
+
+.partnerLogos {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  z-index: 30;
+}
+
+.partnerLogos img {
+  height: 240px;
+  object-fit: contain;
+}
+
+.partnerLogosLeft img {
+  height: 240px;
+  object-fit: contain;
+  transform: scaleX(-1);
+}
+
+/* --- UTILITIES --- */
+.statusContainer {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-poppins), sans-serif;
+  background: #fdf6e3;
+  color: #856404;
+}
+
+.liveBadge {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 10px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 100;
+}
+
+.dot { width: 6px; height: 6px; border-radius: 50%; }
+.connected { background: #25d366; }
+.connecting { background: #ffb800; animation: pulse 1s infinite; }
+.error { background: #ff4d4d; }
+
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+@media (max-width: 1400px) {
+  .guestName { font-size: 5rem; }
+  .coupleNames { font-size: 2.2rem; }
+}
+
+@media (max-width: 1024px) {
+  .footerSection { height: 110px; }
+  .eventDate, .partnerLogos { width: 150px; font-size: 1rem; }
+  .coupleNames { font-size: 1.8rem; }
+  .guestName { font-size: 3.5rem; }
+  .footerDecorationLeft, .footerDecorationRight { width: 120px; }
+}

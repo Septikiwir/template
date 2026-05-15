@@ -63,18 +63,6 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
-    // Broadcast change
-    const channel = context.supabase.channel(`sync:${context.tenantId}`);
-    await channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.send({
-          type: 'broadcast',
-          event: 'sync-data',
-          payload: { type: 'SETTINGS_UPDATED', data: data, sender: context.userId }
-        });
-      }
-    });
-
     return NextResponse.json({ settings: data });
   } catch (error: any) {
     console.error("DEBUG API ERROR POST SETTINGS:", error);

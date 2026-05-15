@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Syne, Poppins } from "next/font/google";
+import { DM_Sans, Syne, Poppins, Playfair_Display, Sacramento } from "next/font/google";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -18,6 +18,18 @@ const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
   weight: ["300", "500", "600", "700"],
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+});
+
+const sacramento = Sacramento({
+  variable: "--font-sacramento",
+  subsets: ["latin"],
+  weight: ["400"],
 });
 
 export const metadata: Metadata = {
@@ -41,7 +53,7 @@ export default function RootLayout({
   return (
     <html
       lang="id"
-      className={`${dmSans.variable} ${syne.variable} ${poppins.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${syne.variable} ${poppins.variable} ${playfair.variable} ${sacramento.variable} h-full antialiased`}
     >
       <body>{children}</body>
     </html>
