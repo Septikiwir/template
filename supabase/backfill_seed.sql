@@ -20,25 +20,32 @@ begin
   select id into user_id from auth.users where email = 'fizah-hanif@wedding.com';
   
   if user_id is not null then
-    -- Insert or ignore if already exists
     insert into public.app_users (id, email, full_name, default_tenant_id, is_superadmin)
     values (user_id, 'fizah-hanif@wedding.com', 'Fizah Hanif', '11111111-1111-1111-1111-111111111111', false)
     on conflict (id) do nothing;
   end if;
+
+  select id into user_id from auth.users where email = 'neneng-wasis@wedding.com';
+  
+  if user_id is not null then
+    insert into public.app_users (id, email, full_name, default_tenant_id, is_superadmin)
+    values (user_id, 'neneng-wasis@wedding.com', 'Neneng Wasis', '11111111-1111-1111-1111-111111111111', false)
+    on conflict (id) do nothing;
+  end if;
 end $$;
 
--- 3. Add user memberships (fizah-hanif as user in Tenant A, as admin in Tenant B)
+-- 3. Add user memberships (fizah-hanif and neneng-wasis as user in Tenant A, as admin in Tenant B)
 insert into public.tenant_memberships (tenant_id, user_id, role)
 select t.id, u.id, 'user'::public.tenant_role
 from public.tenants t
-  join public.app_users u on u.email = 'fizah-hanif@wedding.com'
+  join public.app_users u on u.email in ('fizah-hanif@wedding.com', 'neneng-wasis@wedding.com')
   where t.id = '11111111-1111-1111-1111-111111111111'
 on conflict do nothing;
 
 insert into public.tenant_memberships (tenant_id, user_id, role)
 select t.id, u.id, 'admin'::public.tenant_role
 from public.tenants t
-  join public.app_users u on u.email = 'fizah-hanif@wedding.com'
+  join public.app_users u on u.email in ('fizah-hanif@wedding.com', 'neneng-wasis@wedding.com')
   where t.id = '22222222-2222-2222-2222-222222222222'
 on conflict do nothing;
 

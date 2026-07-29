@@ -41,6 +41,24 @@ function getJwtRole(token) {
   }
 }
 
+const tenants = [
+  {
+    id: "11111111-1111-1111-1111-111111111111",
+    name: "Tenant A (Fizah & Hanif)",
+    plan: "free",
+  },
+  {
+    id: "22222222-2222-2222-2222-222222222222",
+    name: "Tenant B (Admin)",
+    plan: "pro",
+  },
+  {
+    id: "33333333-3333-3333-3333-333333333333",
+    name: "Tenant C (Neneng & Wasis)",
+    plan: "pro",
+  },
+];
+
 const accounts = [
   {
     email: "superadmin@wedding.com",
@@ -60,6 +78,36 @@ const accounts = [
       {
         tenantId: "22222222-2222-2222-2222-222222222222",
         role: "admin",
+      },
+    ],
+  },
+  {
+    email: "fizah-hanif@wedding.com",
+    password: "17 mei 2026",
+    fullName: "Fizah Hanif",
+    isSuperadmin: false,
+    defaultTenantId: "11111111-1111-1111-1111-111111111111",
+    memberships: [
+      {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        role: "user",
+      },
+      {
+        tenantId: "22222222-2222-2222-2222-222222222222",
+        role: "admin",
+      },
+    ],
+  },
+  {
+    email: "neneng-wasis@wedding.com",
+    password: "7 agustus 2026",
+    fullName: "Neneng Wasis",
+    isSuperadmin: false,
+    defaultTenantId: "33333333-3333-3333-3333-333333333333",
+    memberships: [
+      {
+        tenantId: "33333333-3333-3333-3333-333333333333",
+        role: "user",
       },
     ],
   },
@@ -141,6 +189,33 @@ async function main() {
       persistSession: false,
     },
   });
+
+  // 1. Upsert tenants
+  for (const tenant of tenants) {
+    const { error: tenantError } = await admin
+      .from("tenants")
+      .upsert(
+        {
+          id: tenant.id,
+          name: tenant.name,
+          plan: tenant.plan,
+        },
+        { onConflict: "id" }
+      );
+
+    if (tenantError) {
+      throw tenantError;
+    }
+  }
+
+  // Clear ALL old tenant memberships for neneng-wasis before re-provisioning
+  const existingNeneng = await findUserByEmail(admin, "neneng-wasis@wedding.com");
+  if (existingNeneng) {
+    await admin
+      .from("tenant_memberships")
+      .delete()
+      .eq("user_id", existingNeneng.id);
+  }
 
   for (const account of accounts) {
     const userId = await upsertAuthUser(admin, account);

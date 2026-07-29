@@ -25,6 +25,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ settings: data || null });
   } catch (error: any) {
+    if (error?.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (error?.message === "Forbidden") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     console.error("DEBUG API ERROR GET SETTINGS:", error);
     return NextResponse.json({ error: error.message || "Gagal mengambil pengaturan." }, { status: 500 });
   }
@@ -65,6 +71,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ settings: data });
   } catch (error: any) {
+    if (error?.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (error?.message === "Forbidden") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     console.error("DEBUG API ERROR POST SETTINGS:", error);
     return NextResponse.json({ error: error.message || "Gagal menyimpan pengaturan." }, { status: 500 });
   }

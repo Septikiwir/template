@@ -218,7 +218,10 @@ export default function Home() {
 
 
   const actualUsername = session?.user?.email?.split('@')[0] || 'tamu';
-  const computedLink = `https://nimantra.vercel.app/${actualUsername}/v1/`;
+  const userLinkMap: Record<string, string> = {
+    "neneng-wasis": "https://nimantra.vercel.app/Neneng-Wasis/v3/",
+  };
+  const computedLink = userLinkMap[actualUsername] || `https://nimantra.vercel.app/${actualUsername}/v1/`;
 
   useEffect(() => {
     localStorage.setItem("wa_sender_sidebar_minimized", isSidebarMinimized.toString());
@@ -664,7 +667,18 @@ export default function Home() {
   };
 
   const handleScanSuccess = async (decodedText: string) => {
-    const cleanToken = decodedText.trim();
+    let cleanToken = decodedText.trim();
+
+    // Jika QR Code mengandung URL penuh, ekstrak parameter token
+    try {
+      const url = new URL(cleanToken);
+      const tokenParam = url.searchParams.get("token");
+      if (tokenParam) {
+        cleanToken = tokenParam;
+      }
+    } catch (e) {
+      // Abaikan jika bukan URL yang valid
+    }
 
     // Cek duplikasi lokal (antrean offline)
     if (locallyScannedTokens.has(cleanToken)) {
@@ -918,13 +932,21 @@ export default function Home() {
 
   // 2. Auth & Realtime Subscription
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsInitializing(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+      })
+      .catch((err) => {
+        console.error("Auth getSession error:", err);
+        setSession(null);
+      })
+      .finally(() => {
+        setIsInitializing(false);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      setIsInitializing(false);
     });
 
     return () => subscription.unsubscribe();
@@ -990,6 +1012,11 @@ export default function Home() {
       } catch {
         if (active) {
           setSessionInfo(null);
+          setSession(null);
+          sessionFetchedRef.current = null;
+          localStorage.removeItem("wa_sender_session_info");
+          localStorage.removeItem("wa_sender_contacts");
+          supabase.auth.signOut().catch(() => {});
         }
       } finally {
         if (active) {
@@ -1003,7 +1030,7 @@ export default function Home() {
     return () => {
       active = false;
     };
-  }, [session, router]);
+  }, [session, router, isInitializing]);
 
   useEffect(() => {
     if (!session || !sessionInfo) {
@@ -1559,12 +1586,7 @@ export default function Home() {
     return sortConfig.direction === 'asc' ? "↑" : "↓";
   };
 
-  if (
-    !hasMounted ||
-    (isInitializing && !sessionInfo) ||
-    (session && isRoleChecking && !sessionInfo) ||
-    (sessionInfo && sessionInfo.role !== "user")
-  ) {
+  if (!hasMounted || isInitializing) {
     return <div className={styles.loadingOverlay}>Memuat...</div>;
   }
 
@@ -1649,6 +1671,13 @@ export default function Home() {
     );
   }
 
+  if (
+    (isRoleChecking && !sessionInfo) ||
+    (sessionInfo && sessionInfo.role !== "user")
+  ) {
+    return <div className={styles.loadingOverlay}>Memuat...</div>;
+  }
+
   // This is the new dashboard return block
   const displayName = username || session.user.email?.split("@")[0] || "User";
   const initial = displayName.charAt(0).toUpperCase();
@@ -1712,6 +1741,8 @@ export default function Home() {
             </span>
             <span className={styles.sidebarLabel}>Buku Tamu</span>
           </button>
+          {actualUsername !== "neneng-wasis" && (
+          <>
           <button
             className={`${styles.sidebarItem} ${activeView === "scan" ? styles.sidebarItemActive : ""}`}
             onClick={() => setActiveView("scan")}
@@ -1730,6 +1761,8 @@ export default function Home() {
             </span>
             <span className={styles.sidebarLabel}>Display</span>
           </button>
+          </>
+          )}
         </nav>
 
         {/* Main Content */}
@@ -1738,9 +1771,11 @@ export default function Home() {
 
             {activeView === "dashboard" ? (
               <div className={styles.dashboardContainer}>
-                <div className={styles.dashboardBanner}>
-                  <img src="/3.jpg" alt="Wedding Banner" />
-                </div>
+                {!session?.user?.email?.toLowerCase().includes("neneng-wasis") && (
+                  <div className={styles.dashboardBanner}>
+                    <img src="/3.jpg" alt="Wedding Banner" />
+                  </div>
+                )}
                 <h2 className={styles.pageTitle}>
                   Halo, {session?.user?.email?.split('@')[0] ? session.user.email.split('@')[0].charAt(0).toUpperCase() + session.user.email.split('@')[0].slice(1) : "Pengantin"}
                 </h2>
